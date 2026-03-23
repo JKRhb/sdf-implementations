@@ -1,0 +1,17 @@
+[package]
+name = "sdf-data-structures"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[lib]
+path = "src/lib.rs" # Custom path to the library root
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+derive_builder = "^0.20.2"
+serde_with = "^3.15.1"
+itertools = "^0.14.0"
+anyhow.workspace = true
+thiserror.workspace = true

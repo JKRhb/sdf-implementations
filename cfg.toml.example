@@ -1,0 +1,12 @@
+# Example config file for the SDF Repository
+
+[sdf-repository]
+username = ""
+password = ""
+basic_auth_enabled = false
+hostname = "localhost"
+https_enabled = false
+
+include_port_in_namespace_url = true
+port = 8080
+bind_address = "127.0.0.1"

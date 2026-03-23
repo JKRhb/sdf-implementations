@@ -1,0 +1,18 @@
+[package]
+name = "sdf-processor"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+clap.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+sdf-data-structures = { path = "../sdf-data-structures"}
+serde_json.workspace = true
+coap = "0.24.0"
+json-pointer = "0.3.4"
+uuid = { version = "1.22.0", features = ["v4"] }
+webrtc-dtls = {version = "0.8.0"}

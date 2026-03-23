@@ -1,0 +1,16 @@
+[package]
+name = "sdf-manager"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+reqwest.workspace = true
+rpassword = "7.4.0"
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+sdf-data-structures = { path = "../sdf-data-structures"}
