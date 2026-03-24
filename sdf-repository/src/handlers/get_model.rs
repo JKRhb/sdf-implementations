@@ -8,11 +8,14 @@
 
 use ::serde::Deserialize;
 use actix_web::error::Error;
-use actix_web::{HttpRequest, HttpResponse, Responder, get, http::header::ContentType, web};
+use actix_web::{HttpRequest, HttpResponse, Responder, get, web};
+use sdf_data_structures::model::SdfModel;
+use utoipa::IntoParams;
 
 use crate::{AppState, models::query_parameters::QueryParameters, traits::QueryHandler};
+use crate::{NAMESPACE_TAG, create_example_model};
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, IntoParams)]
 #[serde(rename_all = "camelCase")]
 struct GetModelQuery {
     lineage: Option<String>,
@@ -66,7 +69,20 @@ impl TryInto<QueryParameters> for (String, GetModelQuery) {
     }
 }
 
-#[utoipa::path()]
+#[utoipa::path(
+    tag = NAMESPACE_TAG,
+    params(
+        GetModelQuery
+    ),
+    responses(
+        (status = 200, content_type = "application/sdf+json", description = "Requested SDF model (with the highest version number)", body = [SdfModel], example = create_example_model),
+        (status = 404, description = "No matching SDF model has been found")
+    ),
+    params(
+        ("tail", description = "Path suffix of the requested model's namespace URL."),
+        GetModelQuery,
+    )
+)]
 #[get("/{tail:.*}")]
 async fn get_model(
     req: HttpRequest,
@@ -82,6 +98,6 @@ async fn get_model(
     let response = serde_json::to_string(&sdf_model)?;
 
     Ok(HttpResponse::Ok()
-        .content_type(ContentType::json())
+        .content_type("application/sdf+json")
         .body(response))
 }

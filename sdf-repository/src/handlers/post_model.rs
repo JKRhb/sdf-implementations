@@ -11,13 +11,23 @@ use actix_web::{
 };
 use sdf_data_structures::model::SdfModel;
 
-use crate::{AppState, handlers::verify_content_type, traits::QueryHandler};
+use crate::{
+    API_TAG, AppState, create_example_model, error::SdfRepositoryError,
+    handlers::verify_content_type, traits::QueryHandler,
+};
 
 fn verify_sdf_model_content_type(ctx: &GuardContext) -> bool {
     verify_content_type(ctx, "application/sdf+json")
 }
 
-#[utoipa::path()]
+#[utoipa::path(
+    tag = API_TAG,
+    request_body(content = SdfModel, description = "SDF model that is supposed to be inserted into the SDF Repository", content_type = "application/sdf+json", example = create_example_model),
+    responses(
+        (status = 201, description = "Inserted SDF model", body = [SdfModel], example = create_example_model),
+        (status = 401, description = "The SDF model's lineage already exists.")
+    )
+)]
 #[post("/models", guard = "verify_sdf_model_content_type")]
 pub(crate) async fn post_model_handler(
     req: web::Json<SdfModel>,
@@ -29,7 +39,15 @@ pub(crate) async fn post_model_handler(
 
     let payload = serde_json::to_string(&inserted_model)?;
 
+    let model_location =
+        inserted_model
+            .get_default_namespace_url()
+            .ok_or(SdfRepositoryError::InternalFailure(
+                "Missing namespace".to_string(),
+            ))?;
+
     Ok(HttpResponse::Created()
         .content_type(ContentType::json())
+        .insert_header(("Location", model_location))
         .body(payload))
 }

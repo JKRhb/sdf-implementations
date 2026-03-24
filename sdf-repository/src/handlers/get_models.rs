@@ -8,11 +8,14 @@
 
 use actix_web::error::Error;
 use actix_web::{HttpResponse, Responder, get, http::header::ContentType, web};
+use sdf_data_structures::model::SdfModel;
 use serde::Deserialize;
+use utoipa::IntoParams;
 
+use crate::{API_TAG, create_example_models};
 use crate::{AppState, models::query_parameters::QueryParameters, traits::QueryHandler};
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, IntoParams)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct GetModelsQuery {
     namespace: String,
@@ -56,7 +59,16 @@ impl TryInto<QueryParameters> for GetModelsQuery {
     }
 }
 
-#[utoipa::path()]
+#[utoipa::path(
+    tag = API_TAG,
+    responses(
+        (status = 200, description = "Requested SDF models", body = [Vec<SdfModel>], example = create_example_models),
+        (status = 404, description = "No matching SDF models have been found")
+    ),
+    params(
+        GetModelsQuery,
+    )
+)]
 #[get("/models")]
 pub(crate) async fn get_models(
     model_query: web::Query<GetModelsQuery>,

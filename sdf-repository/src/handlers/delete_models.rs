@@ -7,12 +7,15 @@
 // SPDX-License-Identifier: MIT
 
 use actix_web::{HttpRequest, HttpResponse, Responder, delete, http::header::ContentType, web};
+use sdf_data_structures::model::SdfModel;
 use serde::Deserialize;
+use utoipa::IntoParams;
 
 use crate::error::SdfRepositoryError;
 use crate::{AppState, models::query_parameters::QueryParameters, traits::QueryHandler};
+use crate::{NAMESPACE_TAG, create_example_models};
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, IntoParams)]
 #[serde(rename_all = "camelCase")]
 struct DeleteModelQuery {
     lineage: Option<String>,
@@ -45,7 +48,17 @@ impl TryInto<QueryParameters> for (String, DeleteModelQuery) {
     }
 }
 
-#[utoipa::path()]
+#[utoipa::path(
+    tag = NAMESPACE_TAG,
+    responses(
+        (status = 200, description = "Deleted SDF models", body = [Vec<SdfModel>], example = create_example_models),
+        (status = 404, description = "No matching SDF models have been found")
+    ),
+    params(
+        ("tail", description = "Path suffix of thenamespace URL requested for deletion."),
+        DeleteModelQuery,
+    )
+)]
 #[delete("/{tail:.*}")]
 pub(crate) async fn delete_model_handler(
     req: HttpRequest,
