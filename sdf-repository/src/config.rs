@@ -33,7 +33,7 @@ pub(crate) struct Config {
 
     /// Whether resources that create, update, or delete models should be
     /// protected via basic authentication (username and password).
-    #[env_config(default = true)]
+    #[env_config(default = false)]
     pub(crate) basic_auth_enabled: bool,
 
     /// The username to be used with basic authentication.
