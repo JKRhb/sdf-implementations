@@ -21,6 +21,7 @@ use utoipa_actix_web::{AppExt, scope};
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
+    config::Config,
     error::SdfRepositoryError,
     logic::{
         check_for_existing_lineage, determine_global_name_collisions,
@@ -29,58 +30,14 @@ use crate::{
     models::SdfModelEntry,
 };
 
+mod config;
 mod error;
 mod logic;
 mod models;
 
-#[toml_cfg::toml_config]
-pub struct Config {
-    #[default("")]
-    username: &'static str,
-
-    #[default("")]
-    password: &'static str,
-
-    #[default(true)]
-    basic_auth_enabled: bool,
-
-    #[default("localhost")]
-    hostname: &'static str,
-
-    #[default(false)]
-    https_enabled: bool,
-
-    #[default(8080)]
-    port: u16,
-
-    #[default(true)]
-    include_port_in_namespace_url: bool,
-
-    #[default("127.0.0.1")]
-    bind_address: &'static str,
-}
-
-impl Config {
-    fn get_scheme(&self) -> &str {
-        if self.https_enabled { "https" } else { "http" }
-    }
-
-    pub(crate) fn get_base_url(&self) -> String {
-        format!(
-            "{}://{}{}",
-            self.get_scheme(),
-            self.hostname,
-            if self.include_port_in_namespace_url {
-                ":".to_string() + &self.port.to_string()
-            } else {
-                String::new()
-            }
-        )
-    }
-}
-
 struct AppState {
     models: Mutex<Vec<SdfModelEntry>>,
+    config: Config,
 }
 
 fn add_model_to_state(
@@ -377,7 +334,12 @@ async fn model_handler(
     data: web::Data<AppState>,
     model_parameters: web::Query<ModelParameters>,
 ) -> actix_web::Result<impl Responder> {
-    let full_request_url = CONFIG.get_base_url() + req.path();
+    let config = &req
+        .app_data::<AppState>()
+        .expect("Invalid app state!")
+        .config;
+
+    let full_request_url = config.get_base_url() + req.path();
 
     let models = &mut data.models.lock().unwrap();
 
@@ -561,12 +523,16 @@ async fn basic_authentication_validator(
     req: ServiceRequest,
     credentials: BasicAuth,
 ) -> actix_web::Result<ServiceRequest, (Error, ServiceRequest)> {
-    if !CONFIG.basic_auth_enabled {
+    let app_data = req.app_data::<AppState>().expect("invalid app state");
+    let config = &app_data.config;
+
+    if !config.basic_auth_enabled {
         warn!("Skipping basic authentication as it is not enabled in the configuration!");
         return Ok(req);
     }
 
-    if credentials.user_id() == CONFIG.username && credentials.password() == Some(CONFIG.password) {
+    if credentials.user_id() == config.username && credentials.password() == Some(&config.password)
+    {
         info!("Basic authentication successful");
         Ok(req)
     } else {
@@ -581,19 +547,24 @@ async fn basic_authentication_validator(
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(Env::default().default_filter_or("info"));
 
-    if CONFIG.basic_auth_enabled {
-        if CONFIG.username.is_empty() {
-            panic!("No username defined for basic authentication!")
-        }
+    dotenv::dotenv().ok();
 
-        if CONFIG.password.is_empty() {
-            panic!("No password defined for basic authentication!")
-        }
-    }
+    let config = Config::init().unwrap();
 
     let app_state = web::Data::new(AppState {
         models: Mutex::new(Vec::new()),
+        config: config.clone(),
     });
+
+    if config.basic_auth_enabled {
+        if config.username.is_empty() {
+            panic!("No username defined for basic authentication!")
+        }
+
+        if config.password.is_empty() {
+            panic!("No password defined for basic authentication!")
+        }
+    }
 
     HttpServer::new(move || {
         App::new()
@@ -619,7 +590,7 @@ async fn main() -> std::io::Result<()> {
             })
             .into_app()
     })
-    .bind((CONFIG.bind_address, CONFIG.port))?
+    .bind((config.bind_address, config.port))?
     .run()
     .await
 }
