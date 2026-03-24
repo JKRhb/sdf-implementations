@@ -7,7 +7,7 @@ license = "MIT"
 [dependencies]
 actix-web = "4.12.1"
 env_logger = "0.11.8"
-sdf-data-structures = { path = "../sdf-data-structures"}
+sdf-data-structures = { path = "../sdf-data-structures", features = ["utoipa"]}
 semver = "1.0.27"
 json-merge-patch.workspace = true
 json-pointer.workspace = true

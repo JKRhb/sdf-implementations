@@ -10,15 +10,16 @@ use std::cmp::Ordering;
 
 use ::serde::Deserialize;
 use actix_web::{
-    HttpRequest, HttpResponse, Responder, error::ErrorNotFound, get, http::header::ContentType, web,
+    HttpRequest, HttpResponse, Responder,
+    error::{ErrorInternalServerError, ErrorNotFound},
+    get,
+    http::header::ContentType,
+    web,
 };
 use semver::Version;
 
 use crate::{
-    AppState,
-    error::SdfRepositoryError,
-    handlers::compare_semantic_version,
-    models::{SdfModelEntry, get_info_block_field_value},
+    AppState, error::SdfRepositoryError, handlers::compare_semantic_version, models::SdfModelEntry,
 };
 
 #[derive(Deserialize, Clone)]
@@ -76,21 +77,24 @@ async fn get_model(
 
     let full_request_url = config.get_base_url() + req.path();
 
-    let models = &mut data.models.lock().unwrap();
+    let models = &mut data
+        .models
+        .lock()
+        .map_err(|_| ErrorInternalServerError("Internal Server Error"))?;
 
     let mut matching_sdf_models = models
         .iter()
         .filter(|sdf_model_entry| {
             full_request_url == sdf_model_entry.namespace
                 && model_parameters
-                    .compare_with_model_entry(&sdf_model_entry)
+                    .compare_with_model_entry(sdf_model_entry)
                     .unwrap_or(false)
         })
         .collect::<Vec<_>>();
 
     matching_sdf_models.sort_by(|a, b| {
-        let first_version = get_info_block_field_value(&a.model, "version");
-        let second_version = get_info_block_field_value(&b.model, "version");
+        let first_version = a.model.get_version();
+        let second_version = b.model.get_version();
 
         if first_version.is_none() {
             if second_version.is_none() {

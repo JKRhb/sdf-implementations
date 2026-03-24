@@ -61,7 +61,7 @@ impl ModelQuery {
 
 #[utoipa::path()]
 #[get("/models")]
-pub(crate) async fn get_models<'a>(
+pub(crate) async fn get_models(
     model_query: web::Query<ModelQuery>,
     data: web::Data<AppState>,
 ) -> actix_web::Result<impl Responder> {
