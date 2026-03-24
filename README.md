@@ -14,4 +14,3 @@ After installing a current Rust version, you can run the three workspace member 
 ```
 
 In practice, it probably makes more sense to `cd` into the application directory and execute `cargo run` from there.
-Note, however, that the configuration file for the SDF Repository currently has to be placed at the workspace-level.
