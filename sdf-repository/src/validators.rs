@@ -6,7 +6,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use actix_web::{Error, dev::ServiceRequest, error::ErrorUnauthorized, guard::GuardContext};
+use actix_web::{Error, dev::ServiceRequest, error::ErrorUnauthorized, web};
 use actix_web_httpauth::extractors::basic::BasicAuth;
 use log::{info, warn};
 
@@ -16,7 +16,9 @@ pub(crate) async fn basic_authentication_validator(
     req: ServiceRequest,
     credentials: BasicAuth,
 ) -> actix_web::Result<ServiceRequest, (Error, ServiceRequest)> {
-    let app_data = req.app_data::<AppState>().expect("invalid app state");
+    let app_data = req
+        .app_data::<web::Data<AppState>>()
+        .expect("invalid app state");
     let config = &app_data.config;
 
     if !config.basic_auth_enabled {

@@ -71,7 +71,7 @@ async fn get_model(
     model_parameters: web::Query<ModelParameters>,
 ) -> actix_web::Result<impl Responder> {
     let config = &req
-        .app_data::<AppState>()
+        .app_data::<web::Data<AppState>>()
         .expect("Invalid app state!")
         .config;
 
