@@ -1,8 +1,17 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use anyhow::bail;
 
 use crate::error::SdfDataStructureError;
+
+pub trait GlobalNameContributor {
+    const QUALITY_NAME: &'static str;
+
+    fn get_global_name(&self, prefix: &String, result: &mut HashSet<String>, given_name: &String) {
+        let global_name = format!("{prefix}/{}/{given_name}", Self::QUALITY_NAME);
+        result.insert(global_name);
+    }
+}
 
 pub trait SdfDataStructure {
     fn namespace(&self) -> Option<&HashMap<String, String>>;
@@ -29,4 +38,8 @@ pub trait SdfDataStructure {
             None => Ok(None),
         }
     }
+}
+
+pub trait GlobalNameAggregator {
+    fn determine_global_names(&self) -> HashSet<String>;
 }
