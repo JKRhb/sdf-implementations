@@ -104,6 +104,10 @@ impl SdfModel {
             .get(&self.default_namespace.clone()?)
             .cloned()
     }
+
+    pub fn get_version(&self) -> Option<String> {
+        self.info.as_ref().and_then(|info| info.version.clone())
+    }
 }
 
 #[skip_serializing_none]
