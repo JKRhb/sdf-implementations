@@ -104,6 +104,24 @@ impl SdfModel {
             .get(&self.default_namespace.clone()?)
             .cloned()
     }
+
+    pub fn get_version(&self) -> Option<String> {
+        self.info.as_ref().and_then(|info| info.version.clone())
+    }
+
+    pub fn update_version(mut self, version: String) -> Self {
+        let mut info = self.info.take().unwrap_or_default();
+
+        info.version = Some(version);
+
+        self.info = Some(info);
+
+        self
+    }
+
+    pub fn get_lineage(&self) -> Option<String> {
+        self.info.as_ref().and_then(|info| info.lineage.clone())
+    }
 }
 
 #[skip_serializing_none]
