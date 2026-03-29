@@ -562,4 +562,186 @@ mod tests {
             serialized_sdf_property
         );
     }
+
+    #[test]
+    fn test_rfc_9880_example() {
+        let value: Value = json!(
+          {
+            "info": {
+              "title": "Example document for SDF (Semantic Definition Format)",
+              "version": "2019-04-24",
+              "copyright": "Copyright 2019 Example Corp. All rights reserved.",
+              "license": "https://example.com/license"
+            },
+            "namespace": {
+              "cap": "https://example.com/capability/cap"
+            },
+            "defaultNamespace": "cap",
+            "sdfObject": {
+              "Switch": {
+                "sdfProperty": {
+                  "value": {
+                    "description": "The state of the switch; false for off and true for on.",
+                    "type": "boolean"
+                  }
+                },
+                "sdfAction": {
+                  "on": {
+                    "description": "Turn the switch on; equivalent to setting value to true."
+                  },
+                  "off": {
+                    "description": "Turn the switch off; equivalent to setting value to false."
+                  },
+                  "toggle": {
+                    "description": "Toggle the switch; equivalent to setting value to its complement."
+                  }
+                }
+              }
+            }
+          }
+        );
+
+        let sdf_model =
+            serde_json::from_value::<SdfModel>(value).expect("Error deserializing SDF model");
+
+        let global_names = sdf_model
+            .determine_global_names()
+            .expect("SDF Model does not contribute global names.");
+
+        let expected_result = HashSet::<String>::from_iter(vec![
+            "https://example.com/capability/cap#/sdfObject/Switch".to_string(),
+            "https://example.com/capability/cap#/sdfObject/Switch/sdfProperty/value".to_string(),
+            "https://example.com/capability/cap#/sdfObject/Switch/sdfAction/on".to_string(),
+            "https://example.com/capability/cap#/sdfObject/Switch/sdfAction/off".to_string(),
+            "https://example.com/capability/cap#/sdfObject/Switch/sdfAction/toggle".to_string(),
+        ]);
+
+        assert_eq!(global_names, expected_result);
+    }
+
+    #[test]
+    fn test_nested_sdf_model() {
+        let value = json!(
+          {
+            "info": {
+              "title": "Example document for SDF (Semantic Definition Format)",
+              "version": "2019-04-24",
+              "copyright": "Copyright 2019 Example Corp. All rights reserved.",
+              "license": "https://example.com/license"
+            },
+            "namespace": {
+              "cap": "https://example.com/capability/cap"
+            },
+            "defaultNamespace": "cap",
+            "sdfThing": {
+              "foo": {
+                "sdfThing": {
+                  "bar": {
+                    "sdfObject": {
+                      "baz": {
+                        "sdfAction": {
+                          "testAction": {
+                            "title": "This is a test."
+                          }
+                        },
+                        "sdfData": {
+                          "greatData": {
+                            "description": "This is great data!"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "sdfProperty": {
+                  "testProperty": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "sdfEvent": {
+              "topLevelSdfEvent": {
+                "description": "This is an amazing event affordance."
+              }
+            },
+            "sdfData": {
+              "evenBetterData": {
+                "description": "This is even better data!"
+              }
+            }
+          }
+        );
+
+        let sdf_model =
+            serde_json::from_value::<SdfModel>(value).expect("Error deserializing SDF model");
+
+        let global_names = sdf_model
+            .determine_global_names()
+            .expect("SDF Model does not contribute global names.");
+
+        let expected_result = HashSet::<String>::from_iter(vec![
+            "https://example.com/capability/cap#/sdfThing/foo".to_string(),
+            "https://example.com/capability/cap#/sdfThing/foo/sdfThing/bar".to_string(),
+            "https://example.com/capability/cap#/sdfThing/foo/sdfThing/bar/sdfObject/baz/sdfAction/testAction".to_string(),
+            "https://example.com/capability/cap#/sdfThing/foo/sdfThing/bar/sdfObject/baz/sdfData/greatData".to_string(),
+            "https://example.com/capability/cap#/sdfThing/foo/sdfThing/bar/sdfObject/baz".to_string(),
+            "https://example.com/capability/cap#/sdfThing/foo/sdfProperty/testProperty".to_string(),
+            "https://example.com/capability/cap#/sdfEvent/topLevelSdfEvent".to_string(),
+            "https://example.com/capability/cap#/sdfData/evenBetterData".to_string(),
+        ]);
+
+        assert_eq!(global_names, expected_result);
+    }
+
+    #[test]
+    fn test_unions_of_global_names() {
+        let value1 = json!(
+          {
+            "namespace": {
+              "cap": "https://example.com/capability/cap"
+            },
+            "defaultNamespace": "cap",
+            "sdfObject": {
+              "foo": {
+                "sdfProperty": {
+                  "bar": {}
+                }
+              }
+            }
+          }
+        );
+
+        let value2 = json!(
+          {
+            "namespace": {
+              "cap": "https://example.com/capability/cap"
+            },
+            "defaultNamespace": "cap",
+            "sdfObject": {
+              "foo": {
+                "sdfProperty": {
+                  "bar": {},
+                  "baz": {}
+                }
+              }
+            }
+          }
+        );
+
+        let sdf_model1 = serde_json::from_value::<SdfModel>(value1)
+            .expect("Deserialization of SDF Model 1 failed!");
+        let sdf_model2 = serde_json::from_value::<SdfModel>(value2)
+            .expect("Deserialization of SDF Model 2 failed!");
+
+        let global_names = vec![&sdf_model1, &sdf_model2].determine_global_names();
+
+        let expected_result = HashSet::<String>::from_iter(vec![
+            "https://example.com/capability/cap#/sdfObject/foo".to_string(),
+            "https://example.com/capability/cap#/sdfObject/foo/sdfProperty/bar".to_string(),
+            "https://example.com/capability/cap#/sdfObject/foo/sdfProperty/baz".to_string(),
+        ]);
+
+        assert_eq!(global_names, expected_result);
+    }
 }
