@@ -35,6 +35,7 @@ pub struct InfoBlock {
 
 #[skip_serializing_none]
 #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct CommonQualities {
     #[builder(setter(into, strip_option), default)]
@@ -52,6 +53,7 @@ pub struct CommonQualities {
 
 #[skip_serializing_none]
 #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SdfModel {
     #[builder(setter(strip_option), default)]
@@ -71,6 +73,7 @@ pub struct SdfModel {
     #[builder(setter(strip_option), default)]
     pub sdf_event: Option<HashMap<String, SdfEvent>>,
     #[builder(setter(strip_option), default)]
+    #[cfg_attr(feature = "utoipa", schema(no_recursion))]
     pub sdf_data: Option<HashMap<String, SdfData>>,
     #[serde(flatten, deserialize_with = "none_extra")]
     #[builder(setter(into, strip_option), default)]
@@ -98,9 +101,11 @@ impl SdfModel {
 
 #[skip_serializing_none]
 #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SdfThing {
     #[builder(setter(strip_option), default)]
+    #[cfg_attr(feature = "utoipa", schema(no_recursion))]
     pub sdf_thing: Option<HashMap<String, SdfThing>>,
     #[builder(setter(strip_option), default)]
     pub sdf_object: Option<HashMap<String, SdfObject>>,
@@ -123,6 +128,7 @@ pub struct SdfThing {
 
 #[skip_serializing_none]
 #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SdfObject {
     #[builder(setter(strip_option), default)]
@@ -149,6 +155,7 @@ pub struct SdfObject {
 
 #[skip_serializing_none]
 #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SdfData {
     #[serde(flatten)]
@@ -160,6 +167,7 @@ pub struct SdfData {
     pub r#type: Option<SchemaDefinition>,
 
     #[builder(setter(into, strip_option), default)]
+    #[cfg_attr(feature = "utoipa", schema(no_recursion))]
     pub sdf_choice: Option<HashMap<String, SdfData>>,
     #[builder(setter(strip_option), default)]
     pub r#enum: Option<Vec<String>>,
@@ -175,6 +183,7 @@ pub struct SdfData {
 }
 
 #[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum SchemaDefinition {
     Boolean,
@@ -187,6 +196,7 @@ pub enum SchemaDefinition {
 
 #[skip_serializing_none]
 #[derive(PartialEq, Serialize, Deserialize, Debug, Clone, Builder)]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct StringSchema {
     #[builder(setter(strip_option), default)]
@@ -201,6 +211,7 @@ pub struct StringSchema {
 
 #[skip_serializing_none]
 #[derive(PartialEq, Serialize, Deserialize, Debug, Clone, Builder)]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct NumericSchema<T> {
     #[builder(setter(strip_option), default)]
@@ -217,6 +228,7 @@ pub struct NumericSchema<T> {
 
 #[skip_serializing_none]
 #[derive(PartialEq, Serialize, Deserialize, Debug, Clone, Builder)]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct ArraySchema {
     #[builder(setter(strip_option), default)]
@@ -229,11 +241,13 @@ pub struct ArraySchema {
 
 #[skip_serializing_none]
 #[derive(PartialEq, Serialize, Deserialize, Debug, Clone, Builder)]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct ObjectSchema {
     #[builder(setter(into, strip_option), default)]
     pub required: Option<Vec<String>>,
     #[builder(setter(into, strip_option), default)]
+    #[cfg_attr(feature = "utoipa", schema(no_recursion))]
     pub properties: Option<HashMap<String, SdfData>>,
 }
 
@@ -256,10 +270,12 @@ fn skip_bool_true(value: &bool) -> bool {
 
 #[skip_serializing_none]
 #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SdfProperty {
     #[serde(flatten)]
     #[builder(default)]
+    #[cfg_attr(feature = "utoipa", schema(no_recursion))]
     pub internal_data: SdfData,
 
     #[builder(setter(strip_option), default = "true")]
@@ -276,6 +292,7 @@ pub struct SdfProperty {
 }
 #[skip_serializing_none]
 #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SdfAction {
     #[serde(flatten)]
@@ -295,6 +312,7 @@ pub struct SdfAction {
 
 #[skip_serializing_none]
 #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SdfEvent {
     #[serde(flatten)]

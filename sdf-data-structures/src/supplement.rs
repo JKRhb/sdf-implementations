@@ -6,10 +6,13 @@ use serde_json::{Map, Value};
 use serde_with::skip_serializing_none;
 
 use crate::{traits::SdfDataStructure, util::none_extra};
+#[cfg(feature = "utoipa")]
+use utoipa::ToSchema;
 
 #[skip_serializing_none]
 #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
 pub struct SdfSupplement {
     #[builder(setter(strip_option))]
     pub info: Option<InfoBlock>,
@@ -34,6 +37,7 @@ impl SdfSupplement {}
 #[skip_serializing_none]
 #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
 pub struct InfoBlock {
     #[builder(setter(into, strip_option), default)]
     pub title: Option<String>,
