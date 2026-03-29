@@ -8,7 +8,8 @@ use serde_json::{Map, Value};
 use serde_with::skip_serializing_none;
 
 use crate::{
-    traits::SdfDataStructure,
+    supplement::SdfSupplement,
+    traits::{GlobalNameContributor, SdfDataStructure},
     util::{default_bool_true, none_extra, skip_bool_true},
 };
 
@@ -151,6 +152,10 @@ pub struct SdfThing {
     pub additional_qualities: Option<Map<String, Value>>,
 }
 
+impl GlobalNameContributor for SdfAction {
+    const QUALITY_NAME: &'static str = "sdfAction";
+}
+
 #[skip_serializing_none]
 #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
 #[cfg_attr(feature = "utoipa", derive(ToSchema))]
@@ -176,6 +181,39 @@ pub struct SdfObject {
     #[serde(flatten, deserialize_with = "none_extra")]
     #[builder(setter(into, strip_option), default)]
     pub additional_qualities: Option<Map<String, Value>>,
+}
+
+impl GlobalNameContributor for SdfObject {
+    const QUALITY_NAME: &'static str = "sdfObject";
+
+    fn get_global_name(&self, prefix: &String, result: &mut HashSet<String>, given_name: &String) {
+        let global_name = format!("{prefix}/{}/{given_name}", Self::QUALITY_NAME);
+        result.insert(global_name.clone());
+
+        if let Some(sdf_action) = &self.sdf_action {
+            for (key, value) in sdf_action.iter() {
+                value.get_global_name(&global_name, result, key);
+            }
+        }
+
+        if let Some(sdf_property) = &self.sdf_property {
+            for (key, value) in sdf_property.iter() {
+                value.get_global_name(&global_name, result, key);
+            }
+        }
+
+        if let Some(sdf_event) = &self.sdf_event {
+            for (key, value) in sdf_event.iter() {
+                value.get_global_name(&global_name, result, key);
+            }
+        }
+
+        if let Some(sdf_data) = &self.sdf_data {
+            for (key, value) in sdf_data.iter() {
+                value.get_global_name(&global_name, result, key);
+            }
+        }
+    }
 }
 
 #[skip_serializing_none]
@@ -216,6 +254,10 @@ where
     let mut deserialized_map = Map::deserialize(deserializer)?;
     deserialized_map.retain(|key, _| key != "type");
     Ok((!deserialized_map.is_empty()).then_some(deserialized_map))
+}
+
+impl GlobalNameContributor for SdfData {
+    const QUALITY_NAME: &'static str = "sdfData";
 }
 
 #[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
@@ -315,6 +357,11 @@ pub struct SdfProperty {
     pub observable: bool,
     // pub sdf_protocol_map: Option<PropertyProtocolMap>,
 }
+
+impl GlobalNameContributor for SdfProperty {
+    const QUALITY_NAME: &'static str = "sdfProperty";
+}
+
 #[skip_serializing_none]
 #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
 #[cfg_attr(feature = "utoipa", derive(ToSchema))]
@@ -335,6 +382,51 @@ pub struct SdfAction {
     pub additional_qualities: Option<Map<String, Value>>,
 }
 
+impl GlobalNameContributor for SdfThing {
+    const QUALITY_NAME: &'static str = "sdfThing";
+
+    fn get_global_name(&self, prefix: &String, result: &mut HashSet<String>, given_name: &String) {
+        let global_name = format!("{prefix}/{}/{given_name}", Self::QUALITY_NAME);
+        result.insert(global_name.clone());
+
+        if let Some(sdf_thing) = &self.sdf_thing {
+            for (key, value) in sdf_thing.iter() {
+                value.get_global_name(&global_name, result, key);
+            }
+        }
+
+        if let Some(sdf_object) = &self.sdf_object {
+            for (key, value) in sdf_object.iter() {
+                value.get_global_name(&global_name, result, key);
+            }
+        }
+
+        if let Some(sdf_action) = &self.sdf_action {
+            for (key, value) in sdf_action.iter() {
+                value.get_global_name(&global_name, result, key);
+            }
+        }
+
+        if let Some(sdf_property) = &self.sdf_property {
+            for (key, value) in sdf_property.iter() {
+                value.get_global_name(&global_name, result, key);
+            }
+        }
+
+        if let Some(sdf_event) = &self.sdf_event {
+            for (key, value) in sdf_event.iter() {
+                value.get_global_name(&global_name, result, key);
+            }
+        }
+
+        if let Some(sdf_data) = &self.sdf_data {
+            for (key, value) in sdf_data.iter() {
+                value.get_global_name(&global_name, result, key);
+            }
+        }
+    }
+}
+
 #[skip_serializing_none]
 #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
 #[cfg_attr(feature = "utoipa", derive(ToSchema))]
@@ -351,6 +443,10 @@ pub struct SdfEvent {
     #[serde(flatten)]
     #[builder(setter(into), default)]
     pub additional_qualities: HashMap<String, Value>,
+}
+
+impl GlobalNameContributor for SdfEvent {
+    const QUALITY_NAME: &'static str = "sdfEvent";
 }
 
 #[cfg(test)]
