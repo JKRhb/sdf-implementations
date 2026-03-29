@@ -39,3 +39,7 @@ pub trait SdfDataStructure {
         }
     }
 }
+
+pub trait GlobalNameAggregator {
+    fn determine_global_names(&self) -> HashSet<String>;
+}

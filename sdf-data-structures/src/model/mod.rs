@@ -9,7 +9,7 @@ use serde_with::skip_serializing_none;
 
 use crate::{
     supplement::SdfSupplement,
-    traits::{GlobalNameContributor, SdfDataStructure},
+    traits::{GlobalNameAggregator, GlobalNameContributor, SdfDataStructure},
     util::{default_bool_true, none_extra, skip_bool_true},
 };
 
@@ -300,6 +300,22 @@ impl GlobalNameContributor for SdfObject {
                 value.get_global_name(&global_name, result, key);
             }
         }
+    }
+}
+
+impl GlobalNameAggregator for Vec<&SdfModel> {
+    fn determine_global_names(&self) -> HashSet<String> {
+        let mut result = HashSet::new();
+
+        for sdf_model in self {
+            let global_names = sdf_model.determine_global_names().unwrap_or_default();
+
+            for global_name in global_names.iter() {
+                result.insert(global_name.clone());
+            }
+        }
+
+        result
     }
 }
 
