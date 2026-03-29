@@ -7,7 +7,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use serde_with::skip_serializing_none;
 
-use crate::traits::SdfDataStructure;
+use crate::{
+    traits::SdfDataStructure,
+    util::{default_bool_true, none_extra, skip_bool_true},
+};
 
 #[cfg(feature = "utoipa")]
 use utoipa::ToSchema;
@@ -255,16 +258,6 @@ pub struct ObjectSchema {
     pub properties: Option<HashMap<String, SdfData>>,
 }
 
-#[inline]
-fn bool_true() -> bool {
-    true
-}
-
-#[inline]
-fn skip_bool_true(value: &bool) -> bool {
-    *value
-}
-
 // #[skip_serializing_none]
 // #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
 // pub struct PropertyProtocolMap {
@@ -283,14 +276,13 @@ pub struct SdfProperty {
     pub internal_data: SdfData,
 
     #[builder(setter(strip_option), default = "true")]
-    // TODO: Refactor this
-    #[serde(default = "bool_true", skip_serializing_if = "skip_bool_true")]
+    #[serde(default = "default_bool_true", skip_serializing_if = "skip_bool_true")]
     pub readable: bool,
     #[builder(setter(strip_option), default = "true")]
-    #[serde(default = "bool_true", skip_serializing_if = "skip_bool_true")]
+    #[serde(default = "default_bool_true", skip_serializing_if = "skip_bool_true")]
     pub writable: bool,
     #[builder(setter(strip_option), default = "true")]
-    #[serde(default = "bool_true", skip_serializing_if = "skip_bool_true")]
+    #[serde(default = "default_bool_true", skip_serializing_if = "skip_bool_true")]
     pub observable: bool,
     // pub sdf_protocol_map: Option<PropertyProtocolMap>,
 }
