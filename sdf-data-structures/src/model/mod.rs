@@ -7,7 +7,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use serde_with::skip_serializing_none;
 
-use crate::traits::SdfDataStructure;
+use crate::{
+    traits::SdfDataStructure,
+    util::{default_bool_true, none_extra, skip_bool_true},
+};
 
 #[cfg(feature = "utoipa")]
 use utoipa::ToSchema;
@@ -181,9 +184,20 @@ pub struct SdfData {
     #[builder(setter(strip_option), default)]
     #[serde(rename = "default")]
     pub default_value: Option<serde_json::Value>,
-    #[serde(flatten, deserialize_with = "deserialize_extra_sdf_data")]
+    #[serde(flatten, deserialize_with = "deserialize_additional_sdf_data")]
     #[builder(setter(into, strip_option), default)]
     pub additional_qualities: Option<Map<String, Value>>,
+}
+
+pub fn deserialize_additional_sdf_data<'de, D>(
+    deserializer: D,
+) -> Result<Option<Map<String, Value>>, D::Error>
+where
+    D: serde::de::Deserializer<'de>,
+{
+    let mut deserialized_map = Map::deserialize(deserializer)?;
+    deserialized_map.retain(|key, _| key != "type");
+    Ok((!deserialized_map.is_empty()).then_some(deserialized_map))
 }
 
 #[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
@@ -255,16 +269,6 @@ pub struct ObjectSchema {
     pub properties: Option<HashMap<String, SdfData>>,
 }
 
-#[inline]
-fn bool_true() -> bool {
-    true
-}
-
-#[inline]
-fn skip_bool_true(value: &bool) -> bool {
-    *value
-}
-
 // #[skip_serializing_none]
 // #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
 // pub struct PropertyProtocolMap {
@@ -283,14 +287,13 @@ pub struct SdfProperty {
     pub internal_data: SdfData,
 
     #[builder(setter(strip_option), default = "true")]
-    // TODO: Refactor this
-    #[serde(default = "bool_true", skip_serializing_if = "skip_bool_true")]
+    #[serde(default = "default_bool_true", skip_serializing_if = "skip_bool_true")]
     pub readable: bool,
     #[builder(setter(strip_option), default = "true")]
-    #[serde(default = "bool_true", skip_serializing_if = "skip_bool_true")]
+    #[serde(default = "default_bool_true", skip_serializing_if = "skip_bool_true")]
     pub writable: bool,
     #[builder(setter(strip_option), default = "true")]
-    #[serde(default = "bool_true", skip_serializing_if = "skip_bool_true")]
+    #[serde(default = "default_bool_true", skip_serializing_if = "skip_bool_true")]
     pub observable: bool,
     // pub sdf_protocol_map: Option<PropertyProtocolMap>,
 }
@@ -330,27 +333,6 @@ pub struct SdfEvent {
     #[serde(flatten)]
     #[builder(setter(into), default)]
     pub additional_qualities: HashMap<String, Value>,
-}
-
-// TODO: Move to utils
-pub fn none_extra<'de, D>(deserializer: D) -> Result<Option<Map<String, Value>>, D::Error>
-where
-    D: serde::de::Deserializer<'de>,
-{
-    let s = Map::deserialize(deserializer)?;
-    Ok((!s.is_empty()).then_some(s))
-}
-
-// TODO: Move to utils
-pub fn deserialize_extra_sdf_data<'de, D>(
-    deserializer: D,
-) -> Result<Option<Map<String, Value>>, D::Error>
-where
-    D: serde::de::Deserializer<'de>,
-{
-    let mut deserialized_map = Map::deserialize(deserializer)?;
-    deserialized_map.retain(|key, _| key != "type");
-    Ok((!deserialized_map.is_empty()).then_some(deserialized_map))
 }
 
 #[cfg(test)]
