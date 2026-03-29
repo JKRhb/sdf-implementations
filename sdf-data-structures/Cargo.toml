@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 
+[features]
+default = []
+utoipa = ["dep:utoipa"]
+
 [lib]
 path = "src/lib.rs" # Custom path to the library root
 
@@ -15,3 +19,4 @@ serde_with = "^3.15.1"
 itertools = "^0.14.0"
 anyhow.workspace = true
 thiserror.workspace = true
+utoipa = { version = "5.4.0", features = ["macros", "debug"], optional = true }
