@@ -118,6 +118,10 @@ impl SdfModel {
 
         self
     }
+
+    pub fn get_lineage(&self) -> Option<String> {
+        self.info.as_ref().and_then(|info| info.lineage.clone())
+    }
 }
 
 #[skip_serializing_none]
