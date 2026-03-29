@@ -9,8 +9,12 @@ use serde_with::skip_serializing_none;
 
 use crate::traits::SdfDataStructure;
 
+#[cfg(feature = "utoipa")]
+use utoipa::ToSchema;
+
 #[skip_serializing_none]
 #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
 pub struct InfoBlock {
     // TODO: Add modified and features
     #[builder(setter(into, strip_option), default)]
