@@ -184,9 +184,20 @@ pub struct SdfData {
     #[builder(setter(strip_option), default)]
     #[serde(rename = "default")]
     pub default_value: Option<serde_json::Value>,
-    #[serde(flatten, deserialize_with = "deserialize_extra_sdf_data")]
+    #[serde(flatten, deserialize_with = "deserialize_additional_sdf_data")]
     #[builder(setter(into, strip_option), default)]
     pub additional_qualities: Option<Map<String, Value>>,
+}
+
+pub fn deserialize_additional_sdf_data<'de, D>(
+    deserializer: D,
+) -> Result<Option<Map<String, Value>>, D::Error>
+where
+    D: serde::de::Deserializer<'de>,
+{
+    let mut deserialized_map = Map::deserialize(deserializer)?;
+    deserialized_map.retain(|key, _| key != "type");
+    Ok((!deserialized_map.is_empty()).then_some(deserialized_map))
 }
 
 #[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
@@ -322,27 +333,6 @@ pub struct SdfEvent {
     #[serde(flatten)]
     #[builder(setter(into), default)]
     pub additional_qualities: HashMap<String, Value>,
-}
-
-// TODO: Move to utils
-pub fn none_extra<'de, D>(deserializer: D) -> Result<Option<Map<String, Value>>, D::Error>
-where
-    D: serde::de::Deserializer<'de>,
-{
-    let s = Map::deserialize(deserializer)?;
-    Ok((!s.is_empty()).then_some(s))
-}
-
-// TODO: Move to utils
-pub fn deserialize_extra_sdf_data<'de, D>(
-    deserializer: D,
-) -> Result<Option<Map<String, Value>>, D::Error>
-where
-    D: serde::de::Deserializer<'de>,
-{
-    let mut deserialized_map = Map::deserialize(deserializer)?;
-    deserialized_map.retain(|key, _| key != "type");
-    Ok((!deserialized_map.is_empty()).then_some(deserialized_map))
 }
 
 #[cfg(test)]
