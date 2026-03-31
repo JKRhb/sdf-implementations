@@ -5,7 +5,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use serde_with::skip_serializing_none;
 
-use crate::{traits::SdfDataStructure, util::none_extra};
+use crate::{
+    traits::SdfDataStructure,
+    util::{default_bool_true, none_extra, skip_bool_true},
+};
+
 #[cfg(feature = "utoipa")]
 use utoipa::ToSchema;
 
@@ -20,6 +24,8 @@ pub struct SdfSupplement {
     pub namespace: Option<HashMap<String, String>>,
     #[builder(setter(into, strip_option), default)]
     pub default_namespace: Option<String>,
+    #[builder(setter(into), default)]
+    pub amend: Vec<HashMap<String, Amendment>>,
 }
 
 impl SdfDataStructure for SdfSupplement {
@@ -33,6 +39,28 @@ impl SdfDataStructure for SdfSupplement {
 }
 
 impl SdfSupplement {}
+#[derive(PartialEq, Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(rename_all = "kebab-case")]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
+pub enum PatchMethod {
+    #[default]
+    MergePatch,
+}
+
+#[skip_serializing_none]
+#[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
+pub struct Amendment {
+    pub delta: Value,
+
+    #[builder(setter(strip_option), default = "true")]
+    #[serde(default = "default_bool_true", skip_serializing_if = "skip_bool_true")]
+    pub fix: bool,
+
+    #[builder(setter(strip_option), default = "PatchMethod::MergePatch")]
+    pub path_method: PatchMethod,
+}
 
 #[skip_serializing_none]
 #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
