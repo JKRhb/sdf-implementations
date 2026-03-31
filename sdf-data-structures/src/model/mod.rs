@@ -111,6 +111,23 @@ enum NewVersionType {
 }
 
 impl SdfModel {
+    /// Determines the set of global names of this SDF Model that conflict a list
+    /// of existing SDF models.
+    pub fn determine_global_name_collisions(
+        &self,
+        existing_sdf_models: Vec<&SdfModel>,
+    ) -> HashSet<String> {
+        let existing_global_names = existing_sdf_models.determine_global_names();
+        let new_global_names = self.determine_global_names().unwrap_or_default();
+
+        HashSet::from_iter(
+            existing_global_names
+                .intersection(&new_global_names)
+                .cloned()
+                .collect::<Vec<String>>(),
+        )
+    }
+
     /// Updates this SDF model using the amendments from the provided SDF supplement and returns the result.
     ///
     /// For the update to work, the version number of this model must adhere to semantic versioning.
