@@ -215,6 +215,27 @@ impl SdfModel {
         }
     }
 
+    /// Returns the default namespace URL from the `namespace` quality as indicated
+    /// by the value of the `defaultNamespace` quality.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use sdf_data_structures::model::SdfModelBuilder;
+    /// use std::collections::HashMap;
+    ///
+    /// # fn main() -> anyhow::Result<()> {
+    /// #
+    /// let model = SdfModelBuilder::default()
+    ///     .namespace(HashMap::from_iter(vec![("foo".to_string(), "https://example.org".to_string())]))
+    ///     .default_namespace("foo")
+    ///     .build()?;
+    ///
+    /// assert_eq!(model.get_default_namespace_url(), Some("https://example.org".to_string()));
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
     pub fn get_default_namespace_url(&self) -> Option<String> {
         self.namespace
             .clone()?
@@ -222,10 +243,45 @@ impl SdfModel {
             .cloned()
     }
 
+    /// Returns the value of the `version` quality within this model's `info` block, if present.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use sdf_data_structures::model::SdfModelBuilder;
+    /// use sdf_data_structures::model::InfoBlockBuilder;
+    /// #
+    /// # fn main() -> anyhow::Result<()> {
+    /// #
+    /// let model = SdfModelBuilder::default()
+    ///     .info(InfoBlockBuilder::default().version("1.0.0").build()?)
+    ///     .build()?;
+    ///
+    /// assert_eq!(model.get_version(), Some("1.0.0".to_string()));
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
     pub fn get_version(&self) -> Option<String> {
         self.info.as_ref().and_then(|info| info.version.clone())
     }
 
+    /// Updates the value of the `version` quality within this model's `info` block and
+    /// returns the updated model.
+    ///
+    /// If no `info` block is defined, it will be created by this method.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use sdf_data_structures::model::SdfModel;
+    ///
+    /// let mut model = SdfModel::default();
+    ///
+    /// model = model.update_version("1.0.0".to_string());
+    ///
+    /// assert_eq!(model.get_version(), Some("1.0.0".to_string()));
+    /// ```
     pub fn update_version(mut self, version: String) -> Self {
         let mut info = self.info.take().unwrap_or_default();
 
@@ -236,6 +292,25 @@ impl SdfModel {
         self
     }
 
+    /// Returns the value of the `lineage` quality within this model's `info` block, if present.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use sdf_data_structures::model::SdfModelBuilder;
+    /// use sdf_data_structures::model::InfoBlockBuilder;
+    /// #
+    /// # fn main() -> anyhow::Result<()> {
+    /// #
+    /// let model = SdfModelBuilder::default()
+    ///     .info(InfoBlockBuilder::default().lineage("foobar").build()?)
+    ///     .build()?;
+    ///
+    /// assert_eq!(model.get_lineage(), Some("foobar".to_string()));
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
     pub fn get_lineage(&self) -> Option<String> {
         self.info.as_ref().and_then(|info| info.lineage.clone())
     }
