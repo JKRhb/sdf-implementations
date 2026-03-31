@@ -240,6 +240,11 @@ impl SdfModel {
         self.info.as_ref().and_then(|info| info.lineage.clone())
     }
 
+    /// Determines the global names contributed by this `SdfModel`.
+    ///
+    /// Returns `None` if the `SdfModel` does not contribute any global names,
+    /// i.e., when it does not define a target namespace via the `defaultNamespace`
+    /// quality.
     pub fn determine_global_names(&self) -> Option<HashSet<String>> {
         let mut result = HashSet::new();
 
