@@ -7,10 +7,11 @@
 // SPDX-License-Identifier: MIT
 
 use actix_web::{
-    HttpResponse, Responder, guard::GuardContext, http::header::ContentType, post, web,
+    HttpResponse, Responder, error::ErrorInternalServerError, guard::GuardContext,
+    http::header::ContentType, post, web,
 };
+use sdf_data_structures::model::SdfModel;
 use semver::Version;
-use serde_json::json;
 
 use crate::{AppState, handlers::verify_content_type, models::add_model_to_state};
 
@@ -20,35 +21,32 @@ fn verify_sdf_model_content_type(ctx: &GuardContext) -> bool {
 
 #[utoipa::path()]
 #[post("/models", guard = "verify_sdf_model_content_type")]
-pub(crate) async fn post_model_handler<'a>(
-    req: web::Json<serde_json::Map<String, serde_json::Value>>,
+pub(crate) async fn post_model_handler(
+    req: web::Json<SdfModel>,
     data: web::Data<AppState>,
 ) -> actix_web::Result<impl Responder> {
-    let mut raw_json = serde_json::to_value(req.0).unwrap();
-    let sdf_model = raw_json.as_object_mut().unwrap();
+    let mut sdf_model = req.0;
 
-    let info_block = sdf_model.get_mut("info");
-
-    if let Some(info_block) = info_block {
-        let info_block = info_block.as_object();
-
-        let version = info_block
-            .and_then(|x| x.get("version"))
-            .and_then(|x| x.as_str());
-
-        if let Some(version) = version {
+    if let Some(info_block) = &sdf_model.info {
+        if let Some(version) = &info_block.version {
             Version::parse(version).map_err(|x| {
                 actix_web::error::ErrorBadRequest(format!("Invalid version quality: {}", x))
             })?;
         }
     } else {
-        sdf_model.insert("info".to_string(), json!({"version": "1.0.0"}));
+        sdf_model = sdf_model.update_version("1.0.0".to_string());
     }
 
-    let mut models = data.models.lock().unwrap();
-    add_model_to_state(&mut models, sdf_model.clone())?;
+    let payload = serde_json::to_string(&sdf_model)
+        .map_err(|_| ErrorInternalServerError("Internal server error"))?;
+
+    let mut models = data
+        .models
+        .lock()
+        .map_err(|_| ErrorInternalServerError("Internal Server Error"))?;
+    add_model_to_state(&mut models, sdf_model)?;
 
     Ok(HttpResponse::Created()
         .content_type(ContentType::json())
-        .body(serde_json::to_string(sdf_model).unwrap()))
+        .body(payload))
 }
