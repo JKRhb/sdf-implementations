@@ -18,7 +18,7 @@ use utoipa::ToSchema;
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "utoipa", derive(ToSchema))]
 pub struct SdfSupplement {
-    #[builder(setter(strip_option))]
+    #[builder(setter(strip_option), default)]
     pub info: Option<InfoBlock>,
     #[builder(setter(into, strip_option), default)]
     pub namespace: Option<HashMap<String, String>>,
