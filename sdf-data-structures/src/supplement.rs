@@ -46,6 +46,8 @@ pub struct InfoBlock {
     #[builder(setter(into, strip_option), default)]
     pub version: Option<String>,
     #[builder(setter(into, strip_option), default)]
+    pub lineage: Option<String>,
+    #[builder(setter(into, strip_option), default)]
     pub target_version: Option<String>,
     #[builder(setter(into, strip_option), default)]
     pub modified: Option<String>,
