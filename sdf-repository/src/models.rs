@@ -168,189 +168,140 @@ pub(crate) fn find_model_matching_supplement<'a>(
     Ok(result)
 }
 
-// #[test]
-// fn test_supplement_model_association() {
-//     let model1 = json!(
-//       {
-//         "info": {
-//           "lineage": "foo"
-//         },
-//         "namespace": {
-//           "cap": "https://example.com/capability/cap"
-//         },
-//         "defaultNamespace": "cap",
-//         "sdfObject": {
-//           "foo": {
-//             "sdfProperty": {
-//               "bar": {}
-//             }
-//           }
-//         }
-//       }
-//     );
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
 
-//     let model2 = json!(
-//       {
-//         "info": {
-//           "lineage": "bar"
-//         },
-//         "namespace": {
-//           "cap": "https://example.com/capability/cap"
-//         },
-//         "defaultNamespace": "cap",
-//         "sdfObject": {
-//           "bar": {
-//             "sdfProperty": {
-//               "foo": {},
-//             }
-//           }
-//         }
-//       }
-//     );
+    use sdf_data_structures::{
+        model::{InfoBlockBuilder, SdfModelBuilder, SdfObjectBuilder, SdfProperty},
+        supplement::{self, AmendmentBuilder, SdfSupplementBuilder},
+    };
+    use serde_json::json;
 
-//     let sdf_models = vec![model1.as_object().unwrap(), model2.as_object().unwrap()];
+    use super::*;
 
-//     let sdf_supplement = json!(
-//       {
-//         "info": {
-//           "lineage": "foo"
-//         },
-//         "namespace": {
-//           "cap": "https://example.com/capability/cap"
-//         },
-//         "defaultNamespace": "cap",
-//         "amend": [
-//           {
-//             "#/sdfObject/foo": {
-//               "delta": {
-//                 "id": 3200
-//               }
-//             },
-//             "#/sdfObject/foo/sdfProperty/bar": {
-//               "delta": {
-//                 "id": 5500
-//               }
-//             }
-//           },
-//         ]
-//       }
-//     );
+    #[test]
+    fn test_supplement_model_association() {
+        let model1 = SdfModelBuilder::default()
+            .info(InfoBlockBuilder::default().lineage("foo").build().unwrap())
+            .namespace(HashMap::from_iter(vec![(
+                "cap".to_string(),
+                "https://example.com/capability/cap".to_string(),
+            )]))
+            .default_namespace("cap")
+            .sdf_object(HashMap::from([(
+                "foo".to_string(),
+                SdfObjectBuilder::default()
+                    .sdf_property(HashMap::from([("bar".to_string(), SdfProperty::default())]))
+                    .build()
+                    .unwrap(),
+            )]))
+            .build()
+            .unwrap();
 
-//     let found_model =
-//         find_model_matching_supplement(sdf_supplement.as_object().unwrap(), sdf_models)
-//             .unwrap()
-//             .unwrap();
+        let model2 = SdfModelBuilder::default()
+            .info(InfoBlockBuilder::default().lineage("bar").build().unwrap())
+            .namespace(HashMap::from_iter(vec![(
+                "cap".to_string(),
+                "https://example.com/capability/cap".to_string(),
+            )]))
+            .default_namespace("cap")
+            .sdf_object(HashMap::from([(
+                "bar".to_string(),
+                SdfObjectBuilder::default()
+                    .sdf_property(HashMap::from([("foo".to_string(), SdfProperty::default())]))
+                    .build()
+                    .unwrap(),
+            )]))
+            .build()
+            .unwrap();
 
-//     assert_eq!(found_model, model1.as_object().unwrap());
-// }
+        let sdf_models = vec![&model1, &model2];
 
-// #[test]
-// fn test_supplement_model_association_with_no_match() {
-//     let model = json!(
-//       {
-//         "info": {
-//           "lineage": "foo"
-//         },
-//         "namespace": {
-//           "cap": "https://example.com/capability/cap"
-//         },
-//         "defaultNamespace": "cap",
-//         "sdfObject": {
-//           "bar": {
-//             "sdfProperty": {
-//               "foo": {},
-//             }
-//           }
-//         }
-//       }
-//     );
+        let sdf_supplement = SdfSupplementBuilder::default()
+            .info(
+                supplement::InfoBlockBuilder::default()
+                    .lineage("bar")
+                    .build()
+                    .unwrap(),
+            )
+            .namespace(HashMap::from_iter(vec![(
+                "cap".to_string(),
+                "https://example.com/capability/cap".to_string(),
+            )]))
+            .default_namespace("cap")
+            .amend(vec![
+                HashMap::from([(
+                    "#/sdfObject/foo".into(),
+                    AmendmentBuilder::default()
+                        .delta(json!(
+                            {
+                                "id": 3200
+                            }
+                        ))
+                        .build()
+                        .unwrap(),
+                )]),
+                HashMap::from([(
+                    "#/sdfObject/foo/sdfProperty/bar".into(),
+                    AmendmentBuilder::default()
+                        .delta(json!(
+                            {
+                                "id": 5500
+                            }
+                        ))
+                        .build()
+                        .unwrap(),
+                )]),
+            ])
+            .build()
+            .unwrap();
 
-//     let sdf_models = vec![model.as_object().unwrap()];
+        let found_model = find_model_matching_supplement(&sdf_supplement, sdf_models)
+            .unwrap()
+            .unwrap();
 
-//     let sdf_supplement = json!(
-//       {
-//         "info": {
-//           "lineage": "bar"
-//         },
-//         "namespace": {
-//           "cap": "https://example.com/capability/cap"
-//         },
-//         "defaultNamespace": "cap",
-//         "amend": []
-//       }
-//     );
+        assert_eq!(found_model, &model2);
+    }
 
-//     let found_model =
-//         find_model_matching_supplement(sdf_supplement.as_object().unwrap(), sdf_models)
-//             .unwrap();
+    #[test]
+    fn test_supplement_model_association_with_no_match() {
+        let model = SdfModelBuilder::default()
+            .info(InfoBlockBuilder::default().lineage("foo").build().unwrap())
+            .namespace(HashMap::from_iter(vec![(
+                "cap".to_string(),
+                "https://example.com/capability/cap".to_string(),
+            )]))
+            .default_namespace("cap")
+            .sdf_object(HashMap::from([(
+                "bar".to_string(),
+                SdfObjectBuilder::default()
+                    .sdf_property(HashMap::from([("foo".to_string(), SdfProperty::default())]))
+                    .build()
+                    .unwrap(),
+            )]))
+            .build()
+            .unwrap();
 
-//     assert_eq!(found_model, None);
-// }
+        let sdf_models = vec![&model];
 
-// #[test]
-// fn test_supplement_model_association_with_duplicates() {
-//     let model1 = json!(
-//       {
-//         "namespace": {
-//           "cap": "https://example.com/capability/cap"
-//         },
-//         "defaultNamespace": "cap",
-//         "sdfObject": {
-//           "foo": {
-//             "sdfProperty": {
-//               "bar": {}
-//             }
-//           }
-//         }
-//       }
-//     );
+        let sdf_supplement = SdfSupplementBuilder::default()
+            .info(
+                supplement::InfoBlockBuilder::default()
+                    .lineage("bar")
+                    .build()
+                    .unwrap(),
+            )
+            .namespace(HashMap::from_iter(vec![(
+                "cap".to_string(),
+                "https://example.com/capability/cap".to_string(),
+            )]))
+            .default_namespace("cap")
+            .build()
+            .unwrap();
 
-//     let model2 = json!(
-//       {
-//         "namespace": {
-//           "cap": "https://example.com/capability/cap"
-//         },
-//         "defaultNamespace": "cap",
-//         "sdfObject": {
-//           "bar": {
-//             "sdfProperty": {
-//               "foo": {},
-//             }
-//           }
-//         }
-//       }
-//     );
+        let found_model = find_model_matching_supplement(&sdf_supplement, sdf_models).unwrap();
 
-//     let sdf_models = vec![model1.as_object().unwrap(), model2.as_object().unwrap()];
-
-//     let sdf_supplement = json!(
-//       {
-//         "namespace": {
-//           "cap": "https://example.com/capability/cap"
-//         },
-//         "defaultNamespace": "cap",
-//         "amend": [
-//           {
-//             "#/sdfObject/foo": {
-//               "delta": {
-//                 "id": 3200
-//               }
-//             },
-//             "#/sdfObject/bar": {
-//               "delta": {
-//                 "id": 3200
-//               }
-//             },
-//           },
-//         ]
-//       }
-//     );
-
-//     let found_model =
-//         find_model_matching_supplement(sdf_supplement.as_object().unwrap(), sdf_models)
-//             .unwrap()
-//             .unwrap();
-
-//     // FIXME: Revisit the current behavior here
-//     assert_eq!(model2.as_object().unwrap(), found_model);
-// }
+        assert_eq!(found_model, None);
+    }
+}
