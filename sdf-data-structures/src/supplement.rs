@@ -1,4 +1,4 @@
-use std::{collections::HashMap, error::Error};
+use std::collections::{HashMap, HashSet};
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
@@ -6,7 +6,7 @@ use serde_json::{Map, Value};
 use serde_with::skip_serializing_none;
 
 use crate::{
-    traits::SdfDataStructure,
+    traits::{GlobalNameAggregator, SdfDataStructure},
     util::{default_bool_true, none_extra, skip_bool_true},
 };
 
@@ -196,4 +196,22 @@ pub struct InfoBlock {
     #[serde(flatten, deserialize_with = "none_extra")]
     #[builder(setter(into, strip_option), default)]
     pub additional_qualities: Option<Map<String, Value>>,
+}
+
+impl GlobalNameAggregator for SdfSupplement {
+    fn determine_global_names(&self) -> HashSet<String> {
+        let namespace_url = self.get_default_namespace_url();
+
+        if let Some(namespace_url) = namespace_url {
+            let global_names = self
+                .amend
+                .iter()
+                .flat_map(|x| x.keys().map(|key| format!("{}{}", namespace_url, key)))
+                .collect::<Vec<_>>();
+
+            HashSet::from_iter(global_names)
+        } else {
+            HashSet::new()
+        }
+    }
 }
