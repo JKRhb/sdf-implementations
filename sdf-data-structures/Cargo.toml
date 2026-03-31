@@ -22,3 +22,4 @@ thiserror.workspace = true
 utoipa = { version = "5.4.0", features = ["macros", "debug"], optional = true }
 json-pointer.workspace = true
 json-merge-patch.workspace = true
+semver = "1.0.27"
