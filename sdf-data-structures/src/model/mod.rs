@@ -2,7 +2,11 @@ pub mod protocol_mappings;
 
 use std::collections::{HashMap, HashSet};
 
+use anyhow::Context;
 use derive_builder::Builder;
+use json_merge_patch::json_merge_patch;
+use json_pointer::JsonPointer;
+use semver::Version;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use serde_with::skip_serializing_none;
@@ -98,7 +102,140 @@ impl SdfDataStructure for SdfModel {
     }
 }
 
+#[derive(PartialEq, PartialOrd, Debug)]
+enum NewVersionType {
+    Major = 3,
+    Minor = 2,
+    Patch = 1,
+    Unchanged = 0,
+}
+
 impl SdfModel {
+    /// Determines the set of global names of this SDF Model that conflict a list
+    /// of existing SDF models.
+    pub fn determine_global_name_collisions(
+        &self,
+        existing_sdf_models: Vec<&SdfModel>,
+    ) -> HashSet<String> {
+        let existing_global_names = existing_sdf_models.determine_global_names();
+        let new_global_names = self.determine_global_names().unwrap_or_default();
+
+        HashSet::from_iter(
+            existing_global_names
+                .intersection(&new_global_names)
+                .cloned()
+                .collect::<Vec<String>>(),
+        )
+    }
+
+    /// Updates this SDF model using the amendments from the provided SDF supplement and returns the result.
+    ///
+    /// For the update to work, the version number of this model must adhere to semantic versioning.
+    /// Depending on whether the changes applied to the model are backwards-compatible or not, or constitute
+    /// a "fix", the new model will contain a version number that has been updated accordingly.
+    ///
+    /// The version bump will take into account the "most severe" change, i.e., if one change is
+    /// non-backwards-compatible, it will cause the major version to be increased.
+    pub fn update_sdf_model(&self, sdf_supplement: &SdfSupplement) -> anyhow::Result<SdfModel> {
+        let mut serialized_model = serde_json::to_value(self)?;
+
+        let current_version = self
+            .get_version()
+            .context("Model has no version defined!")?;
+
+        let mut current_semantic_version = Version::parse(&current_version)
+            .context("version quality does not adhere to semantic versioning!")?;
+
+        let mut overall_new_version_type = NewVersionType::Unchanged;
+
+        for amendment in &sdf_supplement.amend {
+            for (key, value) in amendment.iter() {
+                let delta = &value.delta;
+                let fix = value.fix;
+
+                let type_of_this_change: NewVersionType;
+
+                if fix {
+                    type_of_this_change = NewVersionType::Patch;
+                } else {
+                    let backwards_compatible_change = Self::check_for_backwards_compatibility(key);
+
+                    if backwards_compatible_change {
+                        type_of_this_change = NewVersionType::Minor;
+                    } else {
+                        type_of_this_change = NewVersionType::Major;
+                    }
+                }
+
+                if type_of_this_change > overall_new_version_type {
+                    overall_new_version_type = type_of_this_change;
+                }
+
+                let ptr = key.parse::<JsonPointer<_, _>>().unwrap();
+
+                let target_definition = ptr.get_mut(&mut serialized_model).unwrap();
+
+                json_merge_patch(target_definition, delta);
+            }
+        }
+
+        match overall_new_version_type {
+            NewVersionType::Major => current_semantic_version.major += 1,
+            NewVersionType::Minor => current_semantic_version.minor += 1,
+            NewVersionType::Patch => current_semantic_version.patch += 1,
+            _ => {}
+        }
+
+        let new_sdf_model = serde_json::from_value::<Self>(serialized_model)?;
+
+        let updated_model = new_sdf_model.update_version(current_semantic_version.to_string());
+
+        Ok(updated_model)
+    }
+
+    fn check_for_backwards_compatibility(json_pointer: &String) -> bool {
+        // TODO: Double-check whether this approach works
+        let minor_change_keywords = vec![
+            "#", // Top-level definitions
+            "sdfThing",
+            "sdfObject",
+            "sdfProperty",
+            "sdfAction",
+            "sdfEvent",
+            "sdfData",
+            "label",
+            "description",
+            "$comment",
+        ];
+
+        if let Some(last_pointer_element) = &json_pointer.split("/").last() {
+            minor_change_keywords.contains(last_pointer_element)
+        } else {
+            false
+        }
+    }
+
+    /// Returns the default namespace URL from the `namespace` quality as indicated
+    /// by the value of the `defaultNamespace` quality.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use sdf_data_structures::model::SdfModelBuilder;
+    /// use std::collections::HashMap;
+    ///
+    /// # fn main() -> anyhow::Result<()> {
+    /// #
+    /// let model = SdfModelBuilder::default()
+    ///     .namespace(HashMap::from_iter(vec![("foo".to_string(), "https://example.org".to_string())]))
+    ///     .default_namespace("foo")
+    ///     .build()?;
+    ///
+    /// assert_eq!(model.get_default_namespace_url(), Some("https://example.org".to_string()));
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
     pub fn get_default_namespace_url(&self) -> Option<String> {
         self.namespace
             .clone()?
@@ -106,10 +243,45 @@ impl SdfModel {
             .cloned()
     }
 
+    /// Returns the value of the `version` quality within this model's `info` block, if present.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use sdf_data_structures::model::SdfModelBuilder;
+    /// use sdf_data_structures::model::InfoBlockBuilder;
+    /// #
+    /// # fn main() -> anyhow::Result<()> {
+    /// #
+    /// let model = SdfModelBuilder::default()
+    ///     .info(InfoBlockBuilder::default().version("1.0.0").build()?)
+    ///     .build()?;
+    ///
+    /// assert_eq!(model.get_version(), Some("1.0.0".to_string()));
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
     pub fn get_version(&self) -> Option<String> {
         self.info.as_ref().and_then(|info| info.version.clone())
     }
 
+    /// Updates the value of the `version` quality within this model's `info` block and
+    /// returns the updated model.
+    ///
+    /// If no `info` block is defined, it will be created by this method.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use sdf_data_structures::model::SdfModel;
+    ///
+    /// let mut model = SdfModel::default();
+    ///
+    /// model = model.update_version("1.0.0".to_string());
+    ///
+    /// assert_eq!(model.get_version(), Some("1.0.0".to_string()));
+    /// ```
     pub fn update_version(mut self, version: String) -> Self {
         let mut info = self.info.take().unwrap_or_default();
 
@@ -120,10 +292,34 @@ impl SdfModel {
         self
     }
 
+    /// Returns the value of the `lineage` quality within this model's `info` block, if present.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use sdf_data_structures::model::SdfModelBuilder;
+    /// use sdf_data_structures::model::InfoBlockBuilder;
+    /// #
+    /// # fn main() -> anyhow::Result<()> {
+    /// #
+    /// let model = SdfModelBuilder::default()
+    ///     .info(InfoBlockBuilder::default().lineage("foobar").build()?)
+    ///     .build()?;
+    ///
+    /// assert_eq!(model.get_lineage(), Some("foobar".to_string()));
+    /// #
+    /// #     Ok(())
+    /// # }
+    /// ```
     pub fn get_lineage(&self) -> Option<String> {
         self.info.as_ref().and_then(|info| info.lineage.clone())
     }
 
+    /// Determines the global names contributed by this `SdfModel`.
+    ///
+    /// Returns `None` if the `SdfModel` does not contribute any global names,
+    /// i.e., when it does not define a target namespace via the `defaultNamespace`
+    /// quality.
     pub fn determine_global_names(&self) -> Option<HashSet<String>> {
         let mut result = HashSet::new();
 
