@@ -47,6 +47,10 @@ pub(crate) struct Config {
     /// Only relevant when basic authentication is enabled.
     #[env_config(default = "")]
     pub(crate) password: String,
+
+    /// The URL pointing to a PostgreSQL database.
+    #[cfg(feature="sqlx")]
+    pub(crate) database_url: String,
 }
 
 impl Config {
