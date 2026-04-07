@@ -6,16 +6,19 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicI32, Ordering};
 
 use sdf_data_structures::{model::SdfModel, supplement::SdfSupplement};
 use semver::Version;
 
-static MODEL_ID_SEQ: AtomicU64 = AtomicU64::new(0);
+static MODEL_ID_SEQ: AtomicI32 = AtomicI32::new(0);
+
 
 #[derive(serde::Serialize, Debug, Clone)]
+#[cfg_attr(feature = "sqlx", derive(sqlx::FromRow))]
 pub struct SdfModelEntry {
-    id: String,
+    id: i32,
+    #[cfg_attr(feature = "sqlx", sqlx(json))]
     pub model: SdfModel,
     pub version: String,
     pub namespace: String,
@@ -52,9 +55,9 @@ impl SdfModelEntry {
         }
     }
 
-    fn get_next_model_id() -> String {
+    fn get_next_model_id() -> i32 {
         MODEL_ID_SEQ.fetch_add(1, Ordering::SeqCst);
-        MODEL_ID_SEQ.load(Ordering::SeqCst).to_string()
+        MODEL_ID_SEQ.load(Ordering::SeqCst)
     }
 }
 
