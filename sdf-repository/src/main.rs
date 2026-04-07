@@ -107,7 +107,9 @@ async fn main() -> std::io::Result<()> {
         .await
         .expect("Database initialization failed!");
 
-    let pool = PgPool::connect(&config.database_url).await.unwrap();
+    let pool = PgPool::connect(&config.database_url)
+        .await
+        .expect("Unable to connect to database!");
 
     let sdf_model_entry = sqlx::query_as::<_, SdfModelEntry>("SELECT * FROM models")
         .fetch_one(&pool)
