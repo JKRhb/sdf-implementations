@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 
+[features]
+default = ["sqlx"]
+sqlx = ["dep:sqlx"]
+
 [dependencies]
 actix-web = "4.12.1"
 env_logger = "0.11.8"
@@ -22,3 +26,4 @@ toml-cfg = "0.2.0"
 thiserror.workspace = true
 dotenv = "0.15.0"
 dotenv_config = "0.2.3"
+sqlx = { version = "0.8.6", optional = true, features = ["runtime-tokio-rustls", "derive", "postgres", "macros", "uuid"] }
