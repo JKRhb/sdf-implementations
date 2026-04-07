@@ -49,7 +49,9 @@ async fn init_db(config: &Config) -> Result<(), sqlx::Error> {
         .await?
         .rows_affected();
 
-    if rows_affected == 0 {
+    let database_is_empty = rows_affected == 0;
+
+    if database_is_empty {
         let foobar = &SdfModelBuilder::default().build().unwrap();
 
         sqlx::query(
