@@ -62,8 +62,7 @@ async fn init_db(config: &Config) -> Result<(), sqlx::Error> {
         .bind(&foobar.get_default_namespace_url())
         .bind(&foobar.get_lineage())
         .execute(&pool)
-        .await
-        .unwrap();
+        .await?;
 
         let foobar = &SdfModelBuilder::default().build().unwrap();
 
@@ -75,8 +74,7 @@ async fn init_db(config: &Config) -> Result<(), sqlx::Error> {
         .bind(&foobar.get_default_namespace_url())
         .bind(&foobar.get_lineage())
         .execute(&pool)
-        .await
-        .unwrap();
+        .await?;
     }
 
     Ok(())
@@ -105,7 +103,9 @@ async fn main() -> std::io::Result<()> {
         }
     }
 
-    init_db(&config).await.ok();
+    init_db(&config)
+        .await
+        .expect("Database initialization failed!");
 
     let pool = PgPool::connect(&config.database_url).await.unwrap();
 
