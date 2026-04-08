@@ -377,6 +377,9 @@ pub struct SdfThing {
     pub sdf_thing: Option<HashMap<String, SdfThing>>,
     #[builder(setter(strip_option), default)]
     pub sdf_object: Option<HashMap<String, SdfObject>>,
+
+    #[builder(setter(strip_option), default)]
+    pub sdf_context: Option<HashMap<String, SdfContext>>,
     #[builder(setter(strip_option), default)]
     pub sdf_property: Option<HashMap<String, SdfProperty>>,
     #[builder(setter(strip_option), default)]
@@ -413,6 +416,12 @@ impl GlobalNameContributor for SdfThing {
             }
         }
 
+        if let Some(sdf_context) = &self.sdf_context {
+            for (key, value) in sdf_context.iter() {
+                value.get_global_name(&global_name, result, key);
+            }
+        }
+
         if let Some(sdf_action) = &self.sdf_action {
             for (key, value) in sdf_action.iter() {
                 value.get_global_name(&global_name, result, key);
@@ -444,6 +453,8 @@ impl GlobalNameContributor for SdfThing {
 #[cfg_attr(feature = "utoipa", derive(ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SdfObject {
+    #[builder(setter(strip_option), default)]
+    pub sdf_context: Option<HashMap<String, SdfContext>>,
     #[builder(setter(strip_option), default)]
     pub sdf_property: Option<HashMap<String, SdfProperty>>,
     #[builder(setter(strip_option), default)]
@@ -481,6 +492,12 @@ impl GlobalNameContributor for SdfObject {
 
         if let Some(sdf_property) = &self.sdf_property {
             for (key, value) in sdf_property.iter() {
+                value.get_global_name(&global_name, result, key);
+            }
+        }
+
+        if let Some(sdf_context) = &self.sdf_context {
+            for (key, value) in sdf_context.iter() {
                 value.get_global_name(&global_name, result, key);
             }
         }
@@ -659,6 +676,25 @@ pub struct SdfProperty {
 
 impl GlobalNameContributor for SdfProperty {
     const QUALITY_NAME: &'static str = "sdfProperty";
+}
+
+#[skip_serializing_none]
+#[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct SdfContext {
+    #[serde(flatten)]
+    #[builder(default)]
+    #[cfg_attr(feature = "utoipa", schema(no_recursion))]
+    pub internal_data: SdfData,
+
+    #[builder(setter(strip_option), default = "true")]
+    #[serde(default = "default_bool_true", skip_serializing_if = "skip_bool_true")]
+    pub writable: bool,
+}
+
+impl GlobalNameContributor for SdfContext {
+    const QUALITY_NAME: &'static str = "sdfContext";
 }
 
 #[skip_serializing_none]
