@@ -12,20 +12,15 @@ use actix_web::{
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
 use env_logger::Env;
-use sdf_data_structures::model::SdfModelBuilder;
-use sqlx::{PgPool, postgres::PgPoolOptions};
-use std::{env, sync::Mutex};
+use sqlx::PgPool;
 use utoipa_actix_web::{AppExt, scope};
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
-    config::Config,
-    handlers::{
+    config::Config, handlers::{
         delete_models::delete_model_handler, get_model::get_model, get_models::get_models,
         post_model::post_model_handler, post_supplement::post_supplement_handler,
-    },
-    models::SdfModelEntry,
-    validators::basic_authentication_validator,
+    }, models::{AppState, AppStateQueryHandler}, validators::basic_authentication_validator
 };
 
 mod config;
@@ -33,52 +28,6 @@ mod error;
 mod handlers;
 mod models;
 mod validators;
-
-struct AppState {
-    models: Mutex<Vec<SdfModelEntry>>,
-    config: Config,
-}
-
-#[cfg(feature = "sqlx")]
-async fn init_db(config: &Config) -> Result<(), sqlx::Error> {
-    let pool = PgPool::connect(&config.database_url).await?;
-    sqlx::migrate!("./migrations").run(&pool).await?;
-
-    let rows_affected = sqlx::query("SELECT * FROM models")
-        .execute(&pool)
-        .await?
-        .rows_affected();
-
-    let database_is_empty = rows_affected == 0;
-
-    if database_is_empty {
-        let foobar = &SdfModelBuilder::default().build().unwrap();
-
-        sqlx::query(
-            "INSERT INTO models (model, version, namespace, lineage) VALUES ($1, $2, $3, $4)",
-        )
-        .bind(sqlx::types::Json(foobar))
-        .bind(&foobar.get_version())
-        .bind(&foobar.get_default_namespace_url())
-        .bind(&foobar.get_lineage())
-        .execute(&pool)
-        .await?;
-
-        let foobar = &SdfModelBuilder::default().build().unwrap();
-
-        sqlx::query(
-            "INSERT INTO models (model, version, namespace, lineage) VALUES ($1, $2, $3, $4)",
-        )
-        .bind(sqlx::types::Json(foobar))
-        .bind(&foobar.get_version())
-        .bind(&foobar.get_default_namespace_url())
-        .bind(&foobar.get_lineage())
-        .execute(&pool)
-        .await?;
-    }
-
-    Ok(())
-}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -88,10 +37,21 @@ async fn main() -> std::io::Result<()> {
 
     let config = Config::init().unwrap();
 
+    let pool = PgPool::connect(&config.database_url)
+        .await
+        .expect("Unable to connect to database!");
+
     let app_state = web::Data::new(AppState {
+        #[cfg(not(feature = "sqlx"))]
         models: Mutex::new(Vec::new()),
+
         config: config.clone(),
+
+        #[cfg(feature = "sqlx")]
+        database: pool,
     });
+
+    app_state.clone().init_database().await.unwrap();
 
     if config.basic_auth_enabled {
         if config.username.is_empty() {
@@ -102,21 +62,6 @@ async fn main() -> std::io::Result<()> {
             panic!("No password defined for basic authentication!")
         }
     }
-
-    init_db(&config)
-        .await
-        .expect("Database initialization failed!");
-
-    let pool = PgPool::connect(&config.database_url)
-        .await
-        .expect("Unable to connect to database!");
-
-    let sdf_model_entry = sqlx::query_as::<_, SdfModelEntry>("SELECT * FROM models")
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-
-    println!("{:?}", sdf_model_entry);
 
     HttpServer::new(move || {
         App::new()

@@ -19,19 +19,7 @@ pub(crate) mod get_models;
 pub(crate) mod post_model;
 pub(crate) mod post_supplement;
 
-fn compare_semantic_version(
-    model_version: &Version,
-    other_version: &str,
-    precedence: Vec<Ordering>,
-) -> actix_web::Result<bool> {
-    let parsed_other_version = semver::Version::parse(other_version).map_err(|_| {
-        SdfRepositoryError::ModelQueryError(format!(
-            "Version {other_version} does not adhere to semantic versioning!"
-        ))
-    })?;
 
-    Ok(precedence.contains(&model_version.cmp_precedence(&parsed_other_version)))
-}
 
 fn verify_content_type(ctx: &GuardContext, expected_content_type: &str) -> bool {
     let content_type_value = ctx.head().headers().get("content-type");

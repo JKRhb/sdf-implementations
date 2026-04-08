@@ -6,13 +6,19 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::{cmp::Ordering, sync::atomic::AtomicI32};
 
+use actix_web::web;
 use sdf_data_structures::{model::SdfModel, supplement::SdfSupplement};
 use semver::Version;
+use serde::Deserialize;
+use sqlx::Error;
+#[cfg(feature = "sqlx")]
+use sqlx::PgPool;
+
+use crate::{config::Config, error::SdfRepositoryError};
 
 static MODEL_ID_SEQ: AtomicI32 = AtomicI32::new(0);
-
 
 #[derive(serde::Serialize, Debug, Clone)]
 #[cfg_attr(feature = "sqlx", derive(sqlx::FromRow))]
@@ -56,8 +62,8 @@ impl SdfModelEntry {
     }
 
     fn get_next_model_id() -> i32 {
-        MODEL_ID_SEQ.fetch_add(1, Ordering::SeqCst);
-        MODEL_ID_SEQ.load(Ordering::SeqCst)
+        MODEL_ID_SEQ.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        MODEL_ID_SEQ.load(std::sync::atomic::Ordering::SeqCst)
     }
 }
 
@@ -169,6 +175,266 @@ pub(crate) fn find_model_matching_supplement<'a>(
     let result = filtered_models.last().copied();
 
     Ok(result)
+}
+
+fn compare_semantic_version(
+    model_version: &Version,
+    other_version: &str,
+    precedence: Vec<Ordering>,
+) -> actix_web::Result<bool> {
+    let parsed_other_version = semver::Version::parse(other_version).map_err(|_| {
+        SdfRepositoryError::ModelQueryError(format!(
+            "Version {other_version} does not adhere to semantic versioning!"
+        ))
+    })?;
+
+    Ok(precedence.contains(&model_version.cmp_precedence(&parsed_other_version)))
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GetModelsQuery {
+    namespace: String,
+    lineage: Option<String>,
+    version: Option<String>,
+    min_version: Option<String>,
+    max_version: Option<String>,
+    exclusive_min_version: Option<String>,
+    exclusive_max_version: Option<String>,
+}
+
+impl GetModelsQuery {
+    fn compare_with_model_entry(
+        &self,
+        sdf_model_entry: &&SdfModelEntry,
+    ) -> actix_web::Result<bool> {
+        if sdf_model_entry.namespace != self.namespace || sdf_model_entry.lineage != self.lineage {
+            return Ok(false);
+        }
+
+        let model_version = semver::Version::parse(&sdf_model_entry.version)
+            .map_err(|_| SdfRepositoryError::InternalModelQueryError())?;
+
+        for (query_version, ordering) in [
+            (&self.version, vec![Ordering::Equal]),
+            (&self.min_version, vec![Ordering::Greater, Ordering::Equal]),
+            (&self.max_version, vec![Ordering::Less, Ordering::Equal]),
+            (&self.exclusive_min_version, vec![Ordering::Greater]),
+            (&self.exclusive_max_version, vec![Ordering::Less]),
+        ] {
+            if let Some(version) = query_version
+                && !compare_semantic_version(&model_version, version, ordering)?
+            {
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
+    }
+}
+
+#[derive(Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GetModelQuery {
+    lineage: Option<String>,
+    version: Option<String>,
+    min_version: Option<String>,
+    max_version: Option<String>,
+    exclusive_min_version: Option<String>,
+    exclusive_max_version: Option<String>,
+}
+
+impl GetModelQuery {
+    fn compare_with_model_entry(
+        &self,
+        sdf_model_entry: &&SdfModelEntry,
+    ) -> actix_web::Result<bool> {
+        if sdf_model_entry.lineage != self.lineage {
+            return Ok(false);
+        }
+
+        let model_version = semver::Version::parse(&sdf_model_entry.version)
+            .map_err(|_| SdfRepositoryError::InternalModelQueryError())?;
+
+        for (query_version, ordering) in [
+            (&self.version, vec![Ordering::Equal]),
+            (&self.min_version, vec![Ordering::Greater, Ordering::Equal]),
+            (&self.max_version, vec![Ordering::Less, Ordering::Equal]),
+            (&self.exclusive_min_version, vec![Ordering::Greater]),
+            (&self.exclusive_max_version, vec![Ordering::Less]),
+        ] {
+            if let Some(version) = query_version
+                && !compare_semantic_version(&model_version, version, ordering)?
+            {
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
+    }
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct DeleteModelQuery {
+    lineage: Option<String>,
+    min_version: Option<String>,
+}
+
+impl DeleteModelQuery {
+    fn compare_with_model_entry(
+        &self,
+        sdf_model_entry: &&SdfModelEntry,
+    ) -> actix_web::Result<bool> {
+        if sdf_model_entry.lineage != self.lineage {
+            return Ok(false);
+        }
+
+        if let Some(min_version) = &self.min_version {
+            let model_version = semver::Version::parse(&sdf_model_entry.version)
+                .map_err(|_| SdfRepositoryError::InternalModelQueryError())?;
+
+            let parsed_min_version = semver::Version::parse(min_version).map_err(|_| {
+                SdfRepositoryError::ModelQueryError(format!(
+                    "Version {min_version} does not adhere to semantic versioning!"
+                ))
+            })?;
+
+            return Ok(parsed_min_version <= model_version);
+        }
+
+        Ok(true)
+    }
+}
+
+pub(crate) struct AppState {
+    #[cfg(not(feature = "sqlx"))]
+    pub(crate) models: Mutex<Vec<SdfModelEntry>>,
+
+    pub(crate) config: Config,
+
+    #[cfg(feature = "sqlx")]
+    pub(crate) database: PgPool,
+}
+
+pub(crate) trait AppStateQueryHandler {
+    async fn init_database(self) -> Result<(), Error>;
+
+    fn delete_models(self, query: DeleteModelQuery) -> Result<Vec<SdfModel>, Error>;
+
+    fn get_model(self, query: GetModelQuery) -> Result<SdfModel, Error>;
+
+    fn get_models(self, query: GetModelsQuery) -> Result<Vec<SdfModel>, Error>;
+
+    async fn insert_model(self, model: SdfModel) -> Result<SdfModel, Error>;
+
+    async fn update_model(self, model: SdfSupplement) -> Result<SdfModel, Error>;
+}
+
+impl AppStateQueryHandler for web::Data<AppState> {
+    async fn init_database(self) -> Result<(), Error> {
+        let pool = &self.database;
+
+        sqlx::migrate!("./migrations").run(pool).await?;
+
+        let rows_affected = sqlx::query("SELECT * FROM models")
+            .execute(pool)
+            .await?
+            .rows_affected();
+
+        let database_is_empty = rows_affected == 0;
+
+        if database_is_empty {
+            use sdf_data_structures::model::SdfModel;
+            use serde_json::json;
+
+            let mut namespace_url = self.config.get_base_url();
+
+            namespace_url.push_str("/sdf/sensor");
+
+            let initial_model = serde_json::from_value::<SdfModel>(json!({
+            "info": {
+                "lineage": "foobar",
+                "version": "1.1.0"
+            },
+            "namespace": {
+                "sensors": namespace_url
+            },
+            "defaultNamespace": "sensors",
+            "sdfObject": {
+                "envSensor": {
+                    "sdfContext": {
+                        "ipAdress": {
+                            "type": "string"
+                        },
+                        "deviceName": {
+                            "type": "string"
+                        },
+                        "unit": {
+                            "type": "string"
+                        }
+                    },
+                    "sdfProperty": {
+                        "temperature": {
+                            "type": "string",
+                            "sdfProtocolMap": {
+                                "coap": {
+                                    "sdfParameters": {
+                                        "ipAddress": "#/sdfObject/envSensor/sdfContext/ipAddress"
+                                    },
+                                    "sdfOperations": {
+                                        "read": {
+                                            "method": "GET",
+                                            "href": "/temperature",
+                                            "contentType": [60],
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }))
+        .unwrap();
+
+            self.insert_model(initial_model).await?;
+
+            // insert_model(pool, &initial_model);
+        }
+
+        Ok(())
+    }
+
+    async fn insert_model(self, model: SdfModel) -> Result<SdfModel, Error> {
+        sqlx::query(
+            "INSERT INTO models (model, version, namespace, lineage) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(sqlx::types::Json(&model))
+        .bind(&model.get_version())
+        .bind(&model.get_default_namespace_url())
+        .bind(&model.get_lineage())
+        .execute(&self.database)
+        .await?;
+
+        Ok(model)
+    }
+
+    async fn update_model(self, model: SdfSupplement) -> Result<SdfModel, Error> {
+        todo!()
+    }
+
+    fn get_models(self, query: GetModelsQuery) -> Result<Vec<SdfModel>, sqlx::Error> {
+        todo!()
+    }
+
+    fn get_model(self, query: GetModelQuery) -> Result<SdfModel, Error> {
+        todo!()
+    }
+
+    fn delete_models(self, query: DeleteModelQuery) -> Result<Vec<SdfModel>, Error> {
+        todo!()
+    }
 }
 
 #[cfg(test)]
