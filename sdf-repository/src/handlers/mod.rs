@@ -6,20 +6,13 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::cmp::Ordering;
-
 use actix_web::guard::GuardContext;
-use semver::Version;
-
-use crate::error::SdfRepositoryError;
 
 pub(crate) mod delete_models;
 pub(crate) mod get_model;
 pub(crate) mod get_models;
 pub(crate) mod post_model;
 pub(crate) mod post_supplement;
-
-
 
 fn verify_content_type(ctx: &GuardContext, expected_content_type: &str) -> bool {
     let content_type_value = ctx.head().headers().get("content-type");

@@ -20,7 +20,7 @@ use crate::{
     config::Config, handlers::{
         delete_models::delete_model_handler, get_model::get_model, get_models::get_models,
         post_model::post_model_handler, post_supplement::post_supplement_handler,
-    }, models::{AppState, AppStateQueryHandler}, validators::basic_authentication_validator
+    }, models::{AppState}, traits::QueryHandler, validators::basic_authentication_validator
 };
 
 mod config;
@@ -28,6 +28,7 @@ mod error;
 mod handlers;
 mod models;
 mod validators;
+mod traits;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -51,7 +52,7 @@ async fn main() -> std::io::Result<()> {
         database: pool,
     });
 
-    app_state.clone().init_database().await.unwrap();
+    app_state.clone().initialize().await.unwrap();
 
     if config.basic_auth_enabled {
         if config.username.is_empty() {

@@ -9,15 +9,18 @@
 use std::{cmp::Ordering, sync::atomic::AtomicI32};
 
 use actix_web::web;
-use sdf_data_structures::{model::SdfModel, supplement::SdfSupplement, traits::SdfDataStructure};
+use sdf_data_structures::{model::SdfModel, supplement::SdfSupplement};
 use semver::Version;
-use serde::Deserialize;
 use serde_json::Value;
 #[cfg(feature = "sqlx")]
 use sqlx::PgPool;
 use sqlx::{Error, Postgres, QueryBuilder};
 
-use crate::{config::Config, error::SdfRepositoryError};
+use crate::{
+    config::Config,
+    error::SdfRepositoryError,
+    traits::{QueryHandler, QueryParameters},
+};
 
 static MODEL_ID_SEQ: AtomicI32 = AtomicI32::new(0);
 
@@ -200,121 +203,31 @@ fn compare_semantic_version(
     Ok(precedence.contains(&model_version.cmp_precedence(&parsed_other_version)))
 }
 
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct GetModelsQuery {
-    namespace: String,
-    lineage: Option<String>,
-    version: Option<String>,
-    min_version: Option<String>,
-    max_version: Option<String>,
-    exclusive_min_version: Option<String>,
-    exclusive_max_version: Option<String>,
-}
+// impl DeleteModelQuery {
+//     fn compare_with_model_entry(
+//         &self,
+//         sdf_model_entry: &&SdfModelEntry,
+//     ) -> actix_web::Result<bool> {
+//         if sdf_model_entry.lineage != self.lineage {
+//             return Ok(false);
+//         }
 
-impl GetModelsQuery {
-    fn compare_with_model_entry(
-        &self,
-        sdf_model_entry: &&SdfModelEntry,
-    ) -> actix_web::Result<bool> {
-        if sdf_model_entry.namespace != self.namespace || sdf_model_entry.lineage != self.lineage {
-            return Ok(false);
-        }
+//         if let Some(min_version) = &self.min_version {
+//             let model_version = semver::Version::parse(&sdf_model_entry.version)
+//                 .map_err(|_| SdfRepositoryError::InternalModelQueryError())?;
 
-        let model_version = semver::Version::parse(&sdf_model_entry.version)
-            .map_err(|_| SdfRepositoryError::InternalModelQueryError())?;
+//             let parsed_min_version = semver::Version::parse(min_version).map_err(|_| {
+//                 SdfRepositoryError::ModelQueryError(format!(
+//                     "Version {min_version} does not adhere to semantic versioning!"
+//                 ))
+//             })?;
 
-        for (query_version, ordering) in [
-            (&self.version, vec![Ordering::Equal]),
-            (&self.min_version, vec![Ordering::Greater, Ordering::Equal]),
-            (&self.max_version, vec![Ordering::Less, Ordering::Equal]),
-            (&self.exclusive_min_version, vec![Ordering::Greater]),
-            (&self.exclusive_max_version, vec![Ordering::Less]),
-        ] {
-            if let Some(version) = query_version
-                && !compare_semantic_version(&model_version, version, ordering)?
-            {
-                return Ok(false);
-            }
-        }
+//             return Ok(parsed_min_version <= model_version);
+//         }
 
-        Ok(true)
-    }
-}
-
-#[derive(Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct GetModelQuery {
-    lineage: Option<String>,
-    version: Option<String>,
-    min_version: Option<String>,
-    max_version: Option<String>,
-    exclusive_min_version: Option<String>,
-    exclusive_max_version: Option<String>,
-}
-
-impl GetModelQuery {
-    fn compare_with_model_entry(
-        &self,
-        sdf_model_entry: &&SdfModelEntry,
-    ) -> actix_web::Result<bool> {
-        if sdf_model_entry.lineage != self.lineage {
-            return Ok(false);
-        }
-
-        let model_version = semver::Version::parse(&sdf_model_entry.version)
-            .map_err(|_| SdfRepositoryError::InternalModelQueryError())?;
-
-        for (query_version, ordering) in [
-            (&self.version, vec![Ordering::Equal]),
-            (&self.min_version, vec![Ordering::Greater, Ordering::Equal]),
-            (&self.max_version, vec![Ordering::Less, Ordering::Equal]),
-            (&self.exclusive_min_version, vec![Ordering::Greater]),
-            (&self.exclusive_max_version, vec![Ordering::Less]),
-        ] {
-            if let Some(version) = query_version
-                && !compare_semantic_version(&model_version, version, ordering)?
-            {
-                return Ok(false);
-            }
-        }
-
-        Ok(true)
-    }
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct DeleteModelQuery {
-    lineage: Option<String>,
-    min_version: Option<String>,
-}
-
-impl DeleteModelQuery {
-    fn compare_with_model_entry(
-        &self,
-        sdf_model_entry: &&SdfModelEntry,
-    ) -> actix_web::Result<bool> {
-        if sdf_model_entry.lineage != self.lineage {
-            return Ok(false);
-        }
-
-        if let Some(min_version) = &self.min_version {
-            let model_version = semver::Version::parse(&sdf_model_entry.version)
-                .map_err(|_| SdfRepositoryError::InternalModelQueryError())?;
-
-            let parsed_min_version = semver::Version::parse(min_version).map_err(|_| {
-                SdfRepositoryError::ModelQueryError(format!(
-                    "Version {min_version} does not adhere to semantic versioning!"
-                ))
-            })?;
-
-            return Ok(parsed_min_version <= model_version);
-        }
-
-        Ok(true)
-    }
-}
+//         Ok(true)
+//     }
+// }
 
 pub(crate) struct AppState {
     #[cfg(not(feature = "sqlx"))]
@@ -326,52 +239,8 @@ pub(crate) struct AppState {
     pub(crate) database: PgPool,
 }
 
-impl AppState {
-    async fn insert_model_into_database(self, model: SdfModel) -> Result<SdfModel, Error> {
-        sqlx::query(
-            "INSERT INTO models (model, version, namespace, lineage) VALUES ($1, $2, $3, $4)",
-        )
-        .bind(sqlx::types::Json(&model))
-        .bind(&model.get_version())
-        .bind(&model.get_default_namespace_url())
-        .bind(&model.get_lineage())
-        .execute(&self.database)
-        .await?;
-
-        Ok(model)
-    }
-}
-
-pub(crate) trait AppStateQueryHandler {
-    async fn init_database(self) -> Result<(), Error>;
-
-    async fn delete_models(self, query: DeleteModelQuery) -> Result<Vec<SdfModel>, Error>;
-
-    async fn get_model(self, query: GetModelQuery) -> Result<SdfModel, Error>;
-
-    async fn get_models(self, query: GetModelsQuery) -> Result<Vec<SdfModel>, Error>;
-
-    async fn insert_model(self, model: SdfModel) -> Result<SdfModel, Error>;
-
-    async fn update_model(self, model: SdfSupplement) -> Result<SdfModel, Error>;
-
-    async fn get_model_from_database(
-        self,
-        namespace_url: String,
-        version: String,
-        lineage: Option<String>,
-    ) -> Result<SdfModel, Error>;
-
-    async fn get_models_from_database(
-        self,
-        namespace_url: String,
-        version: String,
-        lineage: Option<String>,
-    ) -> Result<Vec<SdfModel>, Error>;
-}
-
-impl AppStateQueryHandler for web::Data<AppState> {
-    async fn init_database(self) -> Result<(), Error> {
+impl QueryHandler for web::Data<AppState> {
+    async fn initialize(self) -> Result<(), Error> {
         let pool = &self.database;
 
         sqlx::migrate!("./migrations").run(pool).await?;
@@ -445,55 +314,18 @@ impl AppStateQueryHandler for web::Data<AppState> {
         Ok(())
     }
 
-    async fn get_models_from_database(
-        self,
-        namespace_url: String,
-        version: String,
-        lineage: Option<String>,
-    ) -> Result<Vec<SdfModel>, Error> {
+    async fn get_model(self, query: QueryParameters) -> Result<SdfModel, Error> {
+        let version_vector: Vec<i32> = query.version.unwrap().into();
+
         let query_result = sqlx::query_scalar::<_, DatabaseRow>(
             "SELECT (model, namespace, version, lineage) FROM models
         WHERE namespace = $1
         AND version = $2
         AND lineage IS NOT DISTINCT FROM $3",
         )
-        .bind(namespace_url)
-        .bind(version)
-        .bind(lineage)
-        .fetch_all(&self.database)
-        .await?;
-
-        let model_json_array = query_result
-            .into_iter()
-            .map(|row| row.model)
-            .collect::<Vec<_>>();
-
-        model_json_array
-            .into_iter()
-            .map(|model_json| serde_json::from_value::<SdfModel>(model_json))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|error| {
-                sqlx::Error::Decode(
-                    format!("Error while deserializing SDF model: {}", error.to_string()).into(),
-                )
-            })
-    }
-
-    async fn get_model_from_database(
-        self,
-        namespace_url: String,
-        version: String,
-        lineage: Option<String>,
-    ) -> Result<SdfModel, Error> {
-        let query_result = sqlx::query_scalar::<_, DatabaseRow>(
-            "SELECT (model, namespace, version, lineage) FROM models
-        WHERE namespace = $1
-        AND version = $2
-        AND lineage IS NOT DISTINCT FROM $3",
-        )
-        .bind(namespace_url)
-        .bind(version)
-        .bind(lineage)
+        .bind(query.namespace)
+        .bind(version_vector)
+        .bind(query.lineage)
         .fetch_optional(&self.database)
         .await?;
 
@@ -508,59 +340,55 @@ impl AppStateQueryHandler for web::Data<AppState> {
         })
     }
 
-    async fn update_model(self, sdf_supplement: SdfSupplement) -> Result<SdfModel, Error> {
-        let target_version = sdf_supplement.get_target_version().unwrap();
-        let namespace_url = sdf_supplement.get_target_namespace().unwrap().unwrap();
-        let lineage = sdf_supplement.get_lineage();
+    async fn update_model(self, sdf_supplement: &SdfSupplement) -> Result<SdfModel, Error> {
+        let target_model = self.get_model((sdf_supplement).try_into()?).await?;
 
-        let target_model = self
-            .get_model_from_database(namespace_url, target_version, lineage)
-            .await?;
-
-        let updated_model = target_model.update_sdf_model(&sdf_supplement).unwrap();
+        let updated_model = target_model.update_sdf_model(sdf_supplement).unwrap();
 
         Ok(updated_model)
     }
 
-    async fn get_models(
-        self,
-        get_models_query: GetModelsQuery,
-    ) -> Result<Vec<SdfModel>, sqlx::Error> {
-        let mut query = QueryBuilder::new("SELECT * FROM models WHERE namespace = ");
-        query.push_bind(get_models_query.namespace);
+    async fn get_models(self, query: QueryParameters) -> Result<Vec<SdfModel>, sqlx::Error> {
+        let mut query_builder = QueryBuilder::new("SELECT * FROM models WHERE namespace = ");
+        query_builder.push_bind(query.namespace);
 
-        query.push(" AND lineage IS NOT DISTINCT FROM ");
-        query.push_bind(get_models_query.lineage);
+        query_builder.push(" AND lineage IS NOT DISTINCT FROM ");
+        query_builder.push_bind(query.lineage);
 
-        if let Some(version) = get_models_query.version {
-            let sem_ver = semver::Version::parse(&version).unwrap();
+        if let Some(version) = query.version {
+            let version_vector: Vec<i32> = version.into();
 
-            let yo: Vec<i32> = vec![sem_ver.major, sem_ver.minor, sem_ver.patch]
-                .into_iter()
-                .map(|x| TryInto::<i32>::try_into(x).unwrap())
-                .collect();
-
-            query.push(" AND version = ");
-            query.push_bind(yo);
+            query_builder.push(" AND version = ");
+            query_builder.push_bind(version_vector);
         }
 
-        let query = query.build_query_as::<DatabaseRow>();
-        let yo = query.fetch_all(&self.database).await?;
-        // self.get_models_from_database(namespace_url, version, lineage)
+        let query = query_builder.build_query_as::<DatabaseRow>();
+        let results: Result<Vec<SdfModel>, _> = query
+            .fetch_all(&self.database)
+            .await?
+            .into_iter()
+            .map(|x| serde_json::from_value(x.model))
+            .collect();
 
-        todo!()
+        Ok(results.unwrap())
     }
 
-    async fn get_model(self, query: GetModelQuery) -> Result<SdfModel, Error> {
-        todo!()
-    }
-
-    async fn delete_models(self, query: DeleteModelQuery) -> Result<Vec<SdfModel>, Error> {
+    async fn delete_models(self, query: QueryParameters) -> Result<Vec<SdfModel>, Error> {
         todo!()
     }
 
     async fn insert_model(self, model: SdfModel) -> Result<SdfModel, Error> {
-        todo!()
+        sqlx::query(
+            "INSERT INTO models (model, version, namespace, lineage) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(sqlx::types::Json(&model))
+        .bind(&model.get_version())
+        .bind(&model.get_default_namespace_url())
+        .bind(&model.get_lineage())
+        .execute(&self.database)
+        .await?;
+
+        Ok(model)
     }
 }
 

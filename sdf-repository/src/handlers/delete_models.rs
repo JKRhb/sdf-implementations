@@ -6,48 +6,45 @@
 //
 // SPDX-License-Identifier: MIT
 
-use actix_web::{
-    HttpResponse, Responder, delete, error::ErrorInternalServerError, http::header::ContentType,
-    web,
-};
+use actix_web::{HttpRequest, HttpResponse, Responder, delete, http::header::ContentType, web};
 use serde::Deserialize;
 
 use crate::{
     AppState,
-    error::SdfRepositoryError,
-    models::{AppStateQueryHandler, DeleteModelQuery, SdfModelEntry},
+    traits::{QueryHandler, QueryParameters},
 };
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct DeleteModelQuery {
+    lineage: Option<String>,
+    min_version: Option<String>,
+}
+
+impl Into<QueryParameters> for (String, DeleteModelQuery) {
+    fn into(self) -> QueryParameters {
+        todo!()
+    }
+}
 
 #[utoipa::path()]
 #[delete("/{tail:.*}")]
 pub(crate) async fn delete_model_handler(
+    req: HttpRequest,
     data: web::Data<AppState>,
     query: web::Query<DeleteModelQuery>,
 ) -> actix_web::Result<impl Responder> {
-    let deleted_models = data.delete_models(query.0).unwrap();
+    let full_request_url = data.config.get_base_url() + req.path();
 
-    // let mut models_entries = data
-    //     .models
-    //     .lock()
-    //     .map_err(|_| ErrorInternalServerError("Internal Server Error"))?;
+    let query_parameters = (full_request_url, query.0);
 
-    // let (deleted_entries, remaining_entries): (_, Vec<_>) = models_entries
-    //     .iter()
-    //     .cloned()
-    //     .partition(|x| model_query.compare_with_model_entry(&x).unwrap_or(false));
+    let deleted_models = data.delete_models(query_parameters.into()).await.unwrap();
 
     if deleted_models.is_empty() {
         return Ok(HttpResponse::NotFound().body("No Model has been deleted."));
     }
 
-    let response =
-        serde_json::to_string(&deleted_models)?;
-
-    // models_entries.clear();
-
-    // for remaining_entry in remaining_entries {
-    //     models_entries.push(remaining_entry);
-    // }
+    let response = serde_json::to_string(&deleted_models)?;
 
     Ok(HttpResponse::Ok()
         .content_type(ContentType::json())
