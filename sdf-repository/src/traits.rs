@@ -9,7 +9,7 @@
 use core::panic;
 
 use sdf_data_structures::{model::SdfModel, supplement::SdfSupplement};
-use sqlx::{Error};
+use sqlx::Error;
 
 #[derive(Debug)]
 pub(crate) struct SemanticVersion {

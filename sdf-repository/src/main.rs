@@ -17,18 +17,22 @@ use utoipa_actix_web::{AppExt, scope};
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
-    config::Config, handlers::{
+    config::Config,
+    handlers::{
         delete_models::delete_model_handler, get_model::get_model, get_models::get_models,
         post_model::post_model_handler, post_supplement::post_supplement_handler,
-    }, models::{AppState}, traits::QueryHandler, validators::basic_authentication_validator
+    },
+    models::AppState,
+    traits::QueryHandler,
+    validators::basic_authentication_validator,
 };
 
 mod config;
 mod error;
 mod handlers;
 mod models;
-mod validators;
 mod traits;
+mod validators;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {

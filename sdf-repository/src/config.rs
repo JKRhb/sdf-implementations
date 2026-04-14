@@ -49,7 +49,7 @@ pub(crate) struct Config {
     pub(crate) password: String,
 
     /// The URL pointing to a PostgreSQL database.
-    #[cfg(feature="sqlx")]
+    #[cfg(feature = "sqlx")]
     pub(crate) database_url: String,
 }
 

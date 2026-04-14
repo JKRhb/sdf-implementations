@@ -6,9 +6,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use actix_web::{
-    HttpResponse, Responder, get, http::header::ContentType, web,
-};
+use actix_web::{HttpResponse, Responder, get, http::header::ContentType, web};
 use serde::Deserialize;
 
 use crate::{
