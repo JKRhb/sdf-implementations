@@ -7,8 +7,7 @@
 // SPDX-License-Identifier: MIT
 
 use actix_web::{
-    HttpResponse, Responder, error::ErrorInternalServerError, guard::GuardContext,
-    http::header::ContentType, post, web,
+    HttpResponse, Responder, guard::GuardContext, http::header::ContentType, post, web,
 };
 use sdf_data_structures::model::SdfModel;
 

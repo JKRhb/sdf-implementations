@@ -57,9 +57,7 @@ pub(crate) async fn get_models(
     model_query: web::Query<GetModelsQuery>,
     data: web::Data<AppState>,
 ) -> actix_web::Result<impl Responder> {
-    let models = data
-        .get_models(model_query.0.try_into()?)
-        .await?;
+    let models = data.get_models(model_query.0.try_into()?).await?;
 
     let response = serde_json::to_string(&models)?;
 

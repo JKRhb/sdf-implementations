@@ -10,7 +10,7 @@ use core::panic;
 
 use sdf_data_structures::{model::SdfModel, supplement::SdfSupplement};
 #[cfg(feature = "sqlx")]
-use sqlx::{QueryBuilder};
+use sqlx::QueryBuilder;
 
 #[cfg(not(feature = "sqlx"))]
 use actix_web::Error;
