@@ -8,10 +8,11 @@
 
 use actix_web::{HttpResponse, Responder, get, http::header::ContentType, web};
 use serde::Deserialize;
+use sqlx::Error;
 
 use crate::{
     AppState,
-    traits::{QueryHandler, QueryParameters},
+    traits::{QueryHandler, QueryParameters, SemanticVersion},
 };
 
 #[derive(Deserialize, Clone)]
@@ -26,9 +27,27 @@ pub(crate) struct GetModelsQuery {
     exclusive_max_version: Option<String>,
 }
 
-impl Into<QueryParameters> for GetModelsQuery {
-    fn into(self) -> QueryParameters {
-        todo!()
+impl TryInto<QueryParameters> for GetModelsQuery {
+    type Error = Error;
+
+    fn try_into(self) -> Result<QueryParameters, Error> {
+        let version: Option<SemanticVersion> = self.version.map(|x| x.try_into().unwrap());
+        let min_version: Option<SemanticVersion> = self.min_version.map(|x| x.try_into().unwrap());
+        let max_version: Option<SemanticVersion> = self.max_version.map(|x| x.try_into().unwrap());
+        let exclusive_min_version: Option<SemanticVersion> =
+            self.exclusive_min_version.map(|x| x.try_into().unwrap());
+        let exclusive_max_version: Option<SemanticVersion> =
+            self.exclusive_max_version.map(|x| x.try_into().unwrap());
+
+        Ok(QueryParameters {
+            namespace: self.namespace,
+            lineage: self.lineage,
+            version,
+            min_version,
+            max_version,
+            exclusive_min_version,
+            exclusive_max_version,
+        })
     }
 }
 
@@ -38,7 +57,10 @@ pub(crate) async fn get_models(
     model_query: web::Query<GetModelsQuery>,
     data: web::Data<AppState>,
 ) -> actix_web::Result<impl Responder> {
-    let models = data.get_models(model_query.0.into()).await.unwrap();
+    let models = data
+        .get_models(model_query.0.try_into().unwrap())
+        .await
+        .unwrap();
 
     let response = serde_json::to_string(&models)?;
 

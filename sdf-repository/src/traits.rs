@@ -87,7 +87,10 @@ pub(crate) struct QueryParameters {
 }
 
 impl QueryParameters {
-    pub fn create_query_builder<'a>(self, init: impl Into<String>) -> QueryBuilder<'a, sqlx::Postgres> {
+    pub fn create_query_builder<'a>(
+        self,
+        init: impl Into<String>,
+    ) -> QueryBuilder<'a, sqlx::Postgres> {
         let mut query_builder = QueryBuilder::new(init);
 
         query_builder.push(" WHERE namespace = ");

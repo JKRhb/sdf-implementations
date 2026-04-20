@@ -19,7 +19,7 @@ use sqlx::{Error, Postgres, QueryBuilder, query_builder};
 use crate::{
     config::Config,
     error::SdfRepositoryError,
-    traits::{QueryHandler, QueryParameters},
+    traits::{QueryHandler, QueryParameters, SemanticVersion},
 };
 
 static MODEL_ID_SEQ: AtomicI32 = AtomicI32::new(0);
@@ -38,7 +38,7 @@ pub struct SdfModelEntry {
 pub struct DatabaseRow {
     id: i32,
     pub model: Value,
-    pub version: String,
+    pub version: Vec<i32>,
     pub namespace: String,
     pub lineage: Option<String>,
 }
@@ -368,11 +368,14 @@ impl QueryHandler for web::Data<AppState> {
     }
 
     async fn insert_model(&self, model: SdfModel) -> Result<SdfModel, Error> {
+        let version: SemanticVersion = model.get_version().unwrap().try_into().unwrap();
+        let version_vector: Vec<i32> = version.into();
+
         sqlx::query(
             "INSERT INTO models (model, version, namespace, lineage) VALUES ($1, $2, $3, $4)",
         )
         .bind(sqlx::types::Json(&model))
-        .bind(&model.get_version())
+        .bind(version_vector)
         .bind(&model.get_default_namespace_url())
         .bind(&model.get_lineage())
         .execute(&self.database)
