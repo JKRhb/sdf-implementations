@@ -48,40 +48,41 @@ impl QueryHandler for web::Data<AppState> {
             namespace_url.push_str("/sdf/sensor");
 
             let initial_model = serde_json::from_value::<SdfModel>(json!({
-            "info": {
-                "lineage": "foobar",
-                "version": "1.1.0"
-            },
-            "namespace": {
-                "sensors": namespace_url
-            },
-            "defaultNamespace": "sensors",
-            "sdfObject": {
-                "envSensor": {
-                    "sdfContext": {
-                        "ipAdress": {
-                            "type": "string"
+                "info": {
+                    "lineage": "foobar",
+                    "version": "1.1.0"
+                },
+                "namespace": {
+                    "sensors": namespace_url
+                },
+                "defaultNamespace": "sensors",
+                "sdfObject": {
+                    "envSensor": {
+                        "sdfContext": {
+                            "ipAdress": {
+                                "type": "string"
+                            },
+                            "deviceName": {
+                                "type": "string"
+                            },
+                            "unit": {
+                                "type": "string"
+                            }
                         },
-                        "deviceName": {
-                            "type": "string"
-                        },
-                        "unit": {
-                            "type": "string"
-                        }
-                    },
-                    "sdfProperty": {
-                        "temperature": {
-                            "type": "string",
-                            "sdfProtocolMap": {
-                                "coap": {
-                                    "sdfParameters": {
-                                        "ipAddress": "#/sdfObject/envSensor/sdfContext/ipAddress"
-                                    },
-                                    "sdfOperations": {
-                                        "read": {
-                                            "method": "GET",
-                                            "href": "/temperature",
-                                            "contentType": [60],
+                        "sdfProperty": {
+                            "temperature": {
+                                "type": "string",
+                                "sdfProtocolMap": {
+                                    "coap": {
+                                        "sdfParameters": {
+                                            "ipAddress": "#/sdfObject/envSensor/sdfContext/ipAddress"
+                                        },
+                                        "sdfOperations": {
+                                            "read": {
+                                                "method": "GET",
+                                                "href": "/temperature",
+                                                "contentType": [60],
+                                            }
                                         }
                                     }
                                 }
@@ -89,9 +90,7 @@ impl QueryHandler for web::Data<AppState> {
                         }
                     }
                 }
-            }
-        }))
-        .unwrap();
+            }))?;
 
             self.insert_model(initial_model).await?;
         }
@@ -125,7 +124,9 @@ impl QueryHandler for web::Data<AppState> {
     ) -> Result<SdfModel, SdfRepositoryError> {
         let target_model = self.get_model((sdf_supplement).try_into()?).await?;
 
-        let updated_model = target_model.update_sdf_model(sdf_supplement).unwrap();
+        let updated_model = target_model
+            .update_sdf_model(sdf_supplement)
+            .map_err(|error| SdfRepositoryError::ModelQueryError("TODO".to_string()))?;
 
         self.insert_model(updated_model).await
     }
@@ -141,7 +142,7 @@ impl QueryHandler for web::Data<AppState> {
             .map(|x| serde_json::from_value(x.model))
             .collect();
 
-        Ok(results.unwrap())
+        Ok(results?)
     }
 
     async fn delete_models(
@@ -158,11 +159,18 @@ impl QueryHandler for web::Data<AppState> {
             .map(|x| serde_json::from_value(x.model))
             .collect();
 
-        Ok(results.unwrap())
+        Ok(results?)
     }
 
     async fn insert_model(&self, model: SdfModel) -> Result<SdfModel, SdfRepositoryError> {
-        let version: SemanticVersion = model.get_version().unwrap().try_into().unwrap();
+        let version = if let Some(version) = model.get_version() {
+            let semantic_version: SemanticVersion = version.try_into()?;
+
+            semantic_version
+        } else {
+            return Err(SdfRepositoryError::ModelQueryError("TODO".to_string()));
+        };
+
         let version_vector: Vec<i32> = version.into();
 
         sqlx::query(

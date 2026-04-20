@@ -12,7 +12,7 @@ use serde::Deserialize;
 use crate::error::SdfRepositoryError;
 use crate::{
     AppState,
-    traits::{QueryHandler, QueryParameters, SemanticVersion},
+    traits::{QueryHandler, QueryParameters},
 };
 
 #[derive(Deserialize, Debug)]
@@ -29,13 +29,10 @@ impl TryInto<QueryParameters> for (String, DeleteModelQuery) {
         let namespace = self.0;
         let get_model_query = self.1;
 
-        let min_version = if let Some(min_version) = get_model_query.min_version {
-            let result: Result<SemanticVersion, _> = min_version.try_into();
-
-            Some(result?)
-        } else {
-            None
-        };
+        let min_version = get_model_query
+            .min_version
+            .map(|min_version| min_version.try_into())
+            .transpose()?;
 
         Ok(QueryParameters {
             namespace: namespace,

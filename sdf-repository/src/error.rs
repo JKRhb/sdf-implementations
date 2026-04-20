@@ -29,6 +29,18 @@ impl ResponseError for SdfRepositoryError {
     }
 }
 
+impl From<serde_json::Error> for SdfRepositoryError {
+    fn from(value: serde_json::Error) -> Self {
+        todo!()
+    }
+}
+
+impl From<SdfRepositoryError> for std::io::Error {
+    fn from(value: SdfRepositoryError) -> Self {
+        todo!()
+    }
+}
+
 #[cfg(feature = "sqlx")]
 impl From<sqlx::error::Error> for SdfRepositoryError {
     fn from(value: sqlx::error::Error) -> Self {

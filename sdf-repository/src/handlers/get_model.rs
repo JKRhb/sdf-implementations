@@ -12,7 +12,7 @@ use actix_web::{HttpRequest, HttpResponse, Responder, get, http::header::Content
 
 use crate::{
     AppState,
-    traits::{QueryHandler, QueryParameters, SemanticVersion},
+    traits::{QueryHandler, QueryParameters},
 };
 
 #[derive(Deserialize, Clone)]
@@ -33,18 +33,30 @@ impl TryInto<QueryParameters> for (String, GetModelQuery) {
         let namespace = self.0;
         let get_model_query = self.1;
 
-        let version: Option<SemanticVersion> =
-            get_model_query.version.map(|x| x.try_into().unwrap());
-        let min_version: Option<SemanticVersion> =
-            get_model_query.min_version.map(|x| x.try_into().unwrap());
-        let max_version: Option<SemanticVersion> =
-            get_model_query.max_version.map(|x| x.try_into().unwrap());
-        let exclusive_min_version: Option<SemanticVersion> = get_model_query
+        let version = get_model_query
+            .version
+            .map(|version| version.try_into())
+            .transpose()?;
+
+        let min_version = get_model_query
+            .min_version
+            .map(|min_version| min_version.try_into())
+            .transpose()?;
+
+        let max_version = get_model_query
+            .max_version
+            .map(|max_version| max_version.try_into())
+            .transpose()?;
+
+        let exclusive_min_version = get_model_query
             .exclusive_min_version
-            .map(|x| x.try_into().unwrap());
-        let exclusive_max_version: Option<SemanticVersion> = get_model_query
+            .map(|exclusive_min_version| exclusive_min_version.try_into())
+            .transpose()?;
+
+        let exclusive_max_version = get_model_query
             .exclusive_max_version
-            .map(|x| x.try_into().unwrap());
+            .map(|exclusive_max_version| exclusive_max_version.try_into())
+            .transpose()?;
 
         Ok(QueryParameters {
             namespace: namespace,

@@ -48,12 +48,20 @@ impl TryFrom<Vec<u16>> for SemanticVersion {
     fn try_from(value: Vec<u16>) -> Result<Self, Self::Error> {
         let mut iterator = value.into_iter();
 
-        let major = iterator.next().unwrap();
-        let minor = iterator.next().unwrap();
-        let patch = iterator.next().unwrap();
+        let major = iterator.next().ok_or(SdfRepositoryError::ModelQueryError(
+            "Invalid first sematic version component".to_string(),
+        ))?;
+        let minor = iterator.next().ok_or(SdfRepositoryError::ModelQueryError(
+            "Invalid second sematic version component".to_string(),
+        ))?;
+        let patch = iterator.next().ok_or(SdfRepositoryError::ModelQueryError(
+            "Invalid third sematic version component".to_string(),
+        ))?;
 
         if iterator.next().is_some() {
-            panic!()
+            return Err(SdfRepositoryError::ModelQueryError(
+                "Unexpected fourth version element".to_string(),
+            ));
         }
 
         Ok(Self {
@@ -75,7 +83,10 @@ impl TryFrom<String> for SemanticVersion {
             .map(|x| x.parse::<u16>())
             .collect();
 
-        version_numbers.unwrap().try_into()
+        version_numbers
+            // TODO
+            .map_err(|x| SdfRepositoryError::ModelQueryError(x.to_string()))?
+            .try_into()
     }
 }
 
@@ -127,8 +138,17 @@ impl TryFrom<&SdfSupplement> for QueryParameters {
     type Error = SdfRepositoryError;
 
     fn try_from(value: &SdfSupplement) -> Result<Self, Self::Error> {
-        let version = value.get_target_version().map(|x| x.try_into().unwrap());
-        let namespace = value.get_default_namespace_url().unwrap();
+        let version = if let Some(version) = value.get_target_version() {
+            let semantic_version: SemanticVersion = version.try_into()?;
+
+            Some(semantic_version)
+        } else {
+            None
+        };
+
+        let namespace = value
+            .get_default_namespace_url()
+            .ok_or(SdfRepositoryError::ModelQueryError("TODO".to_string()))?;
         let lineage = value.get_lineage();
 
         Ok(QueryParameters {
