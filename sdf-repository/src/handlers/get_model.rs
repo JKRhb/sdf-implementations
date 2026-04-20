@@ -8,10 +8,11 @@
 
 use ::serde::Deserialize;
 use actix_web::{HttpRequest, HttpResponse, Responder, get, http::header::ContentType, web};
+use sqlx::Error;
 
 use crate::{
     AppState,
-    traits::{QueryHandler, QueryParameters},
+    traits::{QueryHandler, QueryParameters, SemanticVersion},
 };
 
 #[derive(Deserialize, Clone)]
@@ -25,9 +26,35 @@ struct GetModelQuery {
     exclusive_max_version: Option<String>,
 }
 
-impl Into<QueryParameters> for (String, GetModelQuery) {
-    fn into(self) -> QueryParameters {
-        todo!()
+impl TryInto<QueryParameters> for (String, GetModelQuery) {
+    type Error = Error;
+
+    fn try_into(self) -> Result<QueryParameters, Error> {
+        let namespace = self.0;
+        let get_model_query = self.1;
+
+        let version: Option<SemanticVersion> =
+            get_model_query.version.map(|x| x.try_into().unwrap());
+        let min_version: Option<SemanticVersion> =
+            get_model_query.min_version.map(|x| x.try_into().unwrap());
+        let max_version: Option<SemanticVersion> =
+            get_model_query.max_version.map(|x| x.try_into().unwrap());
+        let exclusive_min_version: Option<SemanticVersion> = get_model_query
+            .exclusive_min_version
+            .map(|x| x.try_into().unwrap());
+        let exclusive_max_version: Option<SemanticVersion> = get_model_query
+            .exclusive_max_version
+            .map(|x| x.try_into().unwrap());
+
+        Ok(QueryParameters {
+            namespace: namespace,
+            lineage: get_model_query.lineage,
+            version,
+            min_version,
+            max_version,
+            exclusive_min_version,
+            exclusive_max_version,
+        })
     }
 }
 
@@ -42,7 +69,10 @@ async fn get_model(
 
     let query_parameters = (full_request_url, query.0);
 
-    let sdf_model = data.get_model(query_parameters.into()).await.unwrap();
+    let sdf_model = data
+        .get_model(query_parameters.try_into().unwrap())
+        .await
+        .unwrap();
 
     let response = serde_json::to_string(&sdf_model)?;
 

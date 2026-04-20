@@ -12,9 +12,7 @@ use actix_web::{
 };
 use sdf_data_structures::model::SdfModel;
 
-use crate::{
-    AppState, handlers::verify_content_type, models::add_model_to_state, traits::QueryHandler,
-};
+use crate::{AppState, handlers::verify_content_type, traits::QueryHandler};
 
 fn verify_sdf_model_content_type(ctx: &GuardContext) -> bool {
     verify_content_type(ctx, "application/sdf+json")

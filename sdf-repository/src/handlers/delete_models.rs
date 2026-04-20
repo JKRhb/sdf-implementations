@@ -8,10 +8,11 @@
 
 use actix_web::{HttpRequest, HttpResponse, Responder, delete, http::header::ContentType, web};
 use serde::Deserialize;
+use sqlx::Error;
 
 use crate::{
     AppState,
-    traits::{QueryHandler, QueryParameters},
+    traits::{QueryHandler, QueryParameters, SemanticVersion},
 };
 
 #[derive(Deserialize, Debug)]
@@ -21,9 +22,25 @@ struct DeleteModelQuery {
     min_version: Option<String>,
 }
 
-impl Into<QueryParameters> for (String, DeleteModelQuery) {
-    fn into(self) -> QueryParameters {
-        todo!()
+impl TryInto<QueryParameters> for (String, DeleteModelQuery) {
+    type Error = Error;
+
+    fn try_into(self) -> Result<QueryParameters, Error> {
+        let namespace = self.0;
+        let get_model_query = self.1;
+
+        let min_version: Option<SemanticVersion> =
+            get_model_query.min_version.map(|x| x.try_into().unwrap());
+
+        Ok(QueryParameters {
+            namespace: namespace,
+            lineage: get_model_query.lineage,
+            version: None,
+            min_version,
+            max_version: None,
+            exclusive_min_version: None,
+            exclusive_max_version: None,
+        })
     }
 }
 
@@ -38,7 +55,10 @@ pub(crate) async fn delete_model_handler(
 
     let query_parameters = (full_request_url, query.0);
 
-    let deleted_models = data.delete_models(query_parameters.into()).await.unwrap();
+    let deleted_models = data
+        .delete_models(query_parameters.try_into().unwrap())
+        .await
+        .unwrap();
 
     if deleted_models.is_empty() {
         return Ok(HttpResponse::NotFound().body("No Model has been deleted."));
