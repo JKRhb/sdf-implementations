@@ -9,7 +9,9 @@
 use core::panic;
 
 use sdf_data_structures::{model::SdfModel, supplement::SdfSupplement};
-use sqlx::Error;
+use sqlx::{Error, QueryBuilder};
+
+use crate::models::DatabaseRow;
 
 #[derive(Debug)]
 pub(crate) struct SemanticVersion {
@@ -84,11 +86,53 @@ pub(crate) struct QueryParameters {
     pub(crate) exclusive_max_version: Option<SemanticVersion>,
 }
 
+impl QueryParameters {
+    pub fn create_query_builder<'a>(self, init: impl Into<String>) -> QueryBuilder<'a, sqlx::Postgres> {
+        let mut query_builder = QueryBuilder::new(init);
+
+        query_builder.push(" WHERE namespace = ");
+        query_builder.push_bind(self.namespace);
+
+        query_builder.push(" AND lineage IS NOT DISTINCT FROM ");
+        query_builder.push_bind(self.lineage);
+
+        for (comparator, semantic_version) in vec![
+            ("=", self.version),
+            (">=", self.min_version),
+            ("<=", self.max_version),
+            (">", self.exclusive_min_version),
+            ("<", self.exclusive_max_version),
+        ] {
+            if let Some(semantic_version) = semantic_version {
+                let version_vector: Vec<i32> = semantic_version.into();
+
+                query_builder.push(format!(" AND version {} ", comparator));
+                query_builder.push_bind(version_vector);
+            }
+        }
+
+        query_builder
+        // query_builder.build_query_as::<DatabaseRow>()
+    }
+}
+
 impl TryFrom<&SdfSupplement> for QueryParameters {
     type Error = Error;
 
     fn try_from(value: &SdfSupplement) -> Result<Self, Self::Error> {
-        todo!()
+        let version = value.get_target_version().map(|x| x.try_into().unwrap());
+        let namespace = value.get_default_namespace_url().unwrap();
+        let lineage = value.get_lineage();
+
+        Ok(QueryParameters {
+            namespace,
+            lineage,
+            version,
+            min_version: None,
+            max_version: None,
+            exclusive_min_version: None,
+            exclusive_max_version: None,
+        })
     }
 }
 
@@ -97,11 +141,11 @@ pub(crate) trait QueryHandler {
 
     async fn delete_models(self, query: QueryParameters) -> Result<Vec<SdfModel>, Error>;
 
-    async fn get_model(self, query: QueryParameters) -> Result<SdfModel, Error>;
+    async fn get_model(&self, query: QueryParameters) -> Result<SdfModel, Error>;
 
     async fn get_models(self, query: QueryParameters) -> Result<Vec<SdfModel>, Error>;
 
-    async fn insert_model(self, model: SdfModel) -> Result<SdfModel, Error>;
+    async fn insert_model(&self, model: SdfModel) -> Result<SdfModel, Error>;
 
-    async fn update_model(self, sdf_supplement: &SdfSupplement) -> Result<SdfModel, Error>;
+    async fn update_model(&self, sdf_supplement: &SdfSupplement) -> Result<SdfModel, Error>;
 }

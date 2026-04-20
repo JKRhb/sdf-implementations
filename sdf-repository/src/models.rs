@@ -14,7 +14,7 @@ use semver::Version;
 use serde_json::Value;
 #[cfg(feature = "sqlx")]
 use sqlx::PgPool;
-use sqlx::{Error, Postgres, QueryBuilder};
+use sqlx::{Error, Postgres, QueryBuilder, query_builder};
 
 use crate::{
     config::Config,
@@ -314,20 +314,11 @@ impl QueryHandler for web::Data<AppState> {
         Ok(())
     }
 
-    async fn get_model(self, query: QueryParameters) -> Result<SdfModel, Error> {
-        let version_vector: Vec<i32> = query.version.unwrap().into();
+    async fn get_model(&self, query: QueryParameters) -> Result<SdfModel, Error> {
+        let mut query_builder = query.create_query_builder("SELECT * FROM models");
 
-        let query_result = sqlx::query_scalar::<_, DatabaseRow>(
-            "SELECT (model, namespace, version, lineage) FROM models
-        WHERE namespace = $1
-        AND version = $2
-        AND lineage IS NOT DISTINCT FROM $3",
-        )
-        .bind(query.namespace)
-        .bind(version_vector)
-        .bind(query.lineage)
-        .fetch_optional(&self.database)
-        .await?;
+        let query = query_builder.build_query_as::<DatabaseRow>();
+        let query_result = query.fetch_optional(&self.database).await?;
 
         let model_json = query_result
             .map(|row| row.model)
@@ -340,27 +331,16 @@ impl QueryHandler for web::Data<AppState> {
         })
     }
 
-    async fn update_model(self, sdf_supplement: &SdfSupplement) -> Result<SdfModel, Error> {
+    async fn update_model(&self, sdf_supplement: &SdfSupplement) -> Result<SdfModel, Error> {
         let target_model = self.get_model((sdf_supplement).try_into()?).await?;
 
         let updated_model = target_model.update_sdf_model(sdf_supplement).unwrap();
 
-        Ok(updated_model)
+        self.insert_model(updated_model).await
     }
 
     async fn get_models(self, query: QueryParameters) -> Result<Vec<SdfModel>, sqlx::Error> {
-        let mut query_builder = QueryBuilder::new("SELECT * FROM models WHERE namespace = ");
-        query_builder.push_bind(query.namespace);
-
-        query_builder.push(" AND lineage IS NOT DISTINCT FROM ");
-        query_builder.push_bind(query.lineage);
-
-        if let Some(version) = query.version {
-            let version_vector: Vec<i32> = version.into();
-
-            query_builder.push(" AND version = ");
-            query_builder.push_bind(version_vector);
-        }
+        let mut query_builder = query.create_query_builder("SELECT * FROM models");
 
         let query = query_builder.build_query_as::<DatabaseRow>();
         let results: Result<Vec<SdfModel>, _> = query
@@ -374,10 +354,20 @@ impl QueryHandler for web::Data<AppState> {
     }
 
     async fn delete_models(self, query: QueryParameters) -> Result<Vec<SdfModel>, Error> {
-        todo!()
+        let mut query_builder = query.create_query_builder("DELETE * FROM models");
+
+        let query = query_builder.build_query_as::<DatabaseRow>();
+        let results: Result<Vec<SdfModel>, _> = query
+            .fetch_all(&self.database)
+            .await?
+            .into_iter()
+            .map(|x| serde_json::from_value(x.model))
+            .collect();
+
+        Ok(results.unwrap())
     }
 
-    async fn insert_model(self, model: SdfModel) -> Result<SdfModel, Error> {
+    async fn insert_model(&self, model: SdfModel) -> Result<SdfModel, Error> {
         sqlx::query(
             "INSERT INTO models (model, version, namespace, lineage) VALUES ($1, $2, $3, $4)",
         )
