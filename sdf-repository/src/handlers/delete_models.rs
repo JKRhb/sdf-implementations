@@ -6,9 +6,9 @@
 //
 // SPDX-License-Identifier: MIT
 
+use actix_web::error::Error;
 use actix_web::{HttpRequest, HttpResponse, Responder, delete, http::header::ContentType, web};
 use serde::Deserialize;
-use sqlx::Error;
 
 use crate::{
     AppState,

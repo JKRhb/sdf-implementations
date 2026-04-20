@@ -9,9 +9,11 @@
 use core::panic;
 
 use sdf_data_structures::{model::SdfModel, supplement::SdfSupplement};
+#[cfg(feature = "sqlx")]
 use sqlx::{Error, QueryBuilder};
 
-use crate::models::DatabaseRow;
+#[cfg(not(feature = "sqlx"))]
+use actix_web::Error;
 
 #[derive(Debug)]
 pub(crate) struct SemanticVersion {
@@ -87,6 +89,7 @@ pub(crate) struct QueryParameters {
 }
 
 impl QueryParameters {
+    #[cfg(feature = "sqlx")]
     pub fn create_query_builder<'a>(
         self,
         init: impl Into<String>,
@@ -115,7 +118,6 @@ impl QueryParameters {
         }
 
         query_builder
-        // query_builder.build_query_as::<DatabaseRow>()
     }
 }
 

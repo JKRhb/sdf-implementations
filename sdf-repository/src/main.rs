@@ -12,7 +12,6 @@ use actix_web::{
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
 use env_logger::Env;
-use sqlx::PgPool;
 use utoipa_actix_web::{AppExt, scope};
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -26,6 +25,12 @@ use crate::{
     traits::QueryHandler,
     validators::basic_authentication_validator,
 };
+
+#[cfg(not(feature = "sqlx"))]
+use std::sync::Mutex;
+
+#[cfg(feature = "sqlx")]
+use sqlx::PgPool;
 
 mod config;
 mod error;
@@ -42,6 +47,7 @@ async fn main() -> std::io::Result<()> {
 
     let config = Config::init().unwrap();
 
+    #[cfg(feature = "sqlx")]
     let pool = PgPool::connect(&config.database_url)
         .await
         .expect("Unable to connect to database!");
