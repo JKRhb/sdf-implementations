@@ -212,39 +212,39 @@ fn compare_semantic_version(
 // }
 
 impl QueryHandler for web::Data<AppState> {
-    async fn initialize(self) -> Result<(), actix_web::Error> {
+    async fn initialize(self) -> Result<(), SdfRepositoryError> {
         todo!()
     }
 
     async fn delete_models(
         self,
         query: crate::traits::QueryParameters,
-    ) -> Result<Vec<SdfModel>, actix_web::Error> {
+    ) -> Result<Vec<SdfModel>, SdfRepositoryError> {
         todo!()
     }
 
     async fn get_model(
         &self,
         query: crate::traits::QueryParameters,
-    ) -> Result<SdfModel, actix_web::Error> {
+    ) -> Result<SdfModel, SdfRepositoryError> {
         todo!()
     }
 
     async fn get_models(
         self,
         query: crate::traits::QueryParameters,
-    ) -> Result<Vec<SdfModel>, actix_web::Error> {
+    ) -> Result<Vec<SdfModel>, SdfRepositoryError> {
         todo!()
     }
 
-    async fn insert_model(&self, model: SdfModel) -> Result<SdfModel, actix_web::Error> {
+    async fn insert_model(&self, model: SdfModel) -> Result<SdfModel, SdfRepositoryError> {
         todo!()
     }
 
     async fn update_model(
         &self,
         sdf_supplement: &SdfSupplement,
-    ) -> Result<SdfModel, actix_web::Error> {
+    ) -> Result<SdfModel, SdfRepositoryError> {
         todo!()
     }
 }

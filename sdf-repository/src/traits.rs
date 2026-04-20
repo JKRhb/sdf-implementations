@@ -10,10 +10,12 @@ use core::panic;
 
 use sdf_data_structures::{model::SdfModel, supplement::SdfSupplement};
 #[cfg(feature = "sqlx")]
-use sqlx::{Error, QueryBuilder};
+use sqlx::{QueryBuilder};
 
 #[cfg(not(feature = "sqlx"))]
 use actix_web::Error;
+
+use crate::error::SdfRepositoryError;
 
 #[derive(Debug)]
 pub(crate) struct SemanticVersion {
@@ -41,7 +43,7 @@ impl Into<String> for SemanticVersion {
 }
 
 impl TryFrom<Vec<u16>> for SemanticVersion {
-    type Error = Error;
+    type Error = SdfRepositoryError;
 
     fn try_from(value: Vec<u16>) -> Result<Self, Self::Error> {
         let mut iterator = value.into_iter();
@@ -63,7 +65,7 @@ impl TryFrom<Vec<u16>> for SemanticVersion {
 }
 
 impl TryFrom<String> for SemanticVersion {
-    type Error = Error;
+    type Error = SdfRepositoryError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         let split_versions = value.split(".");
@@ -122,7 +124,7 @@ impl QueryParameters {
 }
 
 impl TryFrom<&SdfSupplement> for QueryParameters {
-    type Error = Error;
+    type Error = SdfRepositoryError;
 
     fn try_from(value: &SdfSupplement) -> Result<Self, Self::Error> {
         let version = value.get_target_version().map(|x| x.try_into().unwrap());
@@ -142,15 +144,21 @@ impl TryFrom<&SdfSupplement> for QueryParameters {
 }
 
 pub(crate) trait QueryHandler {
-    async fn initialize(self) -> Result<(), Error>;
+    async fn initialize(self) -> Result<(), SdfRepositoryError>;
 
-    async fn delete_models(self, query: QueryParameters) -> Result<Vec<SdfModel>, Error>;
+    async fn delete_models(
+        self,
+        query: QueryParameters,
+    ) -> Result<Vec<SdfModel>, SdfRepositoryError>;
 
-    async fn get_model(&self, query: QueryParameters) -> Result<SdfModel, Error>;
+    async fn get_model(&self, query: QueryParameters) -> Result<SdfModel, SdfRepositoryError>;
 
-    async fn get_models(self, query: QueryParameters) -> Result<Vec<SdfModel>, Error>;
+    async fn get_models(self, query: QueryParameters) -> Result<Vec<SdfModel>, SdfRepositoryError>;
 
-    async fn insert_model(&self, model: SdfModel) -> Result<SdfModel, Error>;
+    async fn insert_model(&self, model: SdfModel) -> Result<SdfModel, SdfRepositoryError>;
 
-    async fn update_model(&self, sdf_supplement: &SdfSupplement) -> Result<SdfModel, Error>;
+    async fn update_model(
+        &self,
+        sdf_supplement: &SdfSupplement,
+    ) -> Result<SdfModel, SdfRepositoryError>;
 }

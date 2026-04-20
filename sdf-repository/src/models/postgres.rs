@@ -9,9 +9,9 @@
 use actix_web::web;
 use sdf_data_structures::{model::SdfModel, supplement::SdfSupplement};
 use serde_json::Value;
-use sqlx::Error;
 
 use crate::{
+    error::SdfRepositoryError,
     models::AppState,
     traits::{QueryHandler, QueryParameters, SemanticVersion},
 };
@@ -27,7 +27,7 @@ pub struct DatabaseRow {
 }
 
 impl QueryHandler for web::Data<AppState> {
-    async fn initialize(self) -> Result<(), Error> {
+    async fn initialize(self) -> Result<(), SdfRepositoryError> {
         let pool = &self.database;
 
         sqlx::migrate!("./migrations").run(pool).await?;
@@ -99,7 +99,7 @@ impl QueryHandler for web::Data<AppState> {
         Ok(())
     }
 
-    async fn get_model(&self, query: QueryParameters) -> Result<SdfModel, Error> {
+    async fn get_model(&self, query: QueryParameters) -> Result<SdfModel, SdfRepositoryError> {
         let mut query_builder = query.create_query_builder("SELECT * FROM models");
 
         let query = query_builder.build_query_as::<DatabaseRow>();
@@ -110,13 +110,19 @@ impl QueryHandler for web::Data<AppState> {
             .ok_or(sqlx::Error::RowNotFound)?;
 
         serde_json::from_value::<SdfModel>(model_json).map_err(|error| {
-            sqlx::Error::Decode(
-                format!("Error while deserializing SDF model: {}", error.to_string()).into(),
-            )
+            {
+                sqlx::Error::Decode(
+                    format!("Error while deserializing SDF model: {}", error.to_string()).into(),
+                )
+            }
+            .into()
         })
     }
 
-    async fn update_model(&self, sdf_supplement: &SdfSupplement) -> Result<SdfModel, Error> {
+    async fn update_model(
+        &self,
+        sdf_supplement: &SdfSupplement,
+    ) -> Result<SdfModel, SdfRepositoryError> {
         let target_model = self.get_model((sdf_supplement).try_into()?).await?;
 
         let updated_model = target_model.update_sdf_model(sdf_supplement).unwrap();
@@ -124,7 +130,7 @@ impl QueryHandler for web::Data<AppState> {
         self.insert_model(updated_model).await
     }
 
-    async fn get_models(self, query: QueryParameters) -> Result<Vec<SdfModel>, sqlx::Error> {
+    async fn get_models(self, query: QueryParameters) -> Result<Vec<SdfModel>, SdfRepositoryError> {
         let mut query_builder = query.create_query_builder("SELECT * FROM models");
 
         let query = query_builder.build_query_as::<DatabaseRow>();
@@ -138,7 +144,10 @@ impl QueryHandler for web::Data<AppState> {
         Ok(results.unwrap())
     }
 
-    async fn delete_models(self, query: QueryParameters) -> Result<Vec<SdfModel>, Error> {
+    async fn delete_models(
+        self,
+        query: QueryParameters,
+    ) -> Result<Vec<SdfModel>, SdfRepositoryError> {
         let mut query_builder = query.create_query_builder("DELETE * FROM models");
 
         let query = query_builder.build_query_as::<DatabaseRow>();
@@ -152,7 +161,7 @@ impl QueryHandler for web::Data<AppState> {
         Ok(results.unwrap())
     }
 
-    async fn insert_model(&self, model: SdfModel) -> Result<SdfModel, Error> {
+    async fn insert_model(&self, model: SdfModel) -> Result<SdfModel, SdfRepositoryError> {
         let version: SemanticVersion = model.get_version().unwrap().try_into().unwrap();
         let version_vector: Vec<i32> = version.into();
 
