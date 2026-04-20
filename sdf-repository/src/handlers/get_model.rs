@@ -69,10 +69,7 @@ async fn get_model(
 
     let query_parameters = (full_request_url, query.0);
 
-    let sdf_model = data
-        .get_model(query_parameters.try_into().unwrap())
-        .await
-        .unwrap();
+    let sdf_model = data.get_model(query_parameters.try_into()?).await?;
 
     let response = serde_json::to_string(&sdf_model)?;
 

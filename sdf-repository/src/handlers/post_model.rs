@@ -26,10 +26,9 @@ pub(crate) async fn post_model_handler(
 ) -> actix_web::Result<impl Responder> {
     let sdf_model = req.0;
 
-    let inserted_model = data.insert_model(sdf_model).await.unwrap();
+    let inserted_model = data.insert_model(sdf_model).await?;
 
-    let payload = serde_json::to_string(&inserted_model)
-        .map_err(|_| ErrorInternalServerError("Internal server error"))?;
+    let payload = serde_json::to_string(&inserted_model)?;
 
     Ok(HttpResponse::Created()
         .content_type(ContentType::json())

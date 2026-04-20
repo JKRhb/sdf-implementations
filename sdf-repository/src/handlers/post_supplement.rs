@@ -24,10 +24,9 @@ async fn post_supplement_handler(
     supplement: web::Json<SdfSupplement>,
     data: web::Data<AppState>,
 ) -> actix_web::Result<impl Responder> {
-    let updated_model = data.update_model(&supplement.0).await.unwrap();
+    let updated_model = data.update_model(&supplement.0).await?;
 
-    let payload = serde_json::to_string(&updated_model)
-        .map_err(|_| ErrorInternalServerError("Internal server error"))?;
+    let payload = serde_json::to_string(&updated_model)?;
 
     Ok(HttpResponse::Created()
         .content_type(ContentType::json())

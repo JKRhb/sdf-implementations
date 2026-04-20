@@ -32,7 +32,7 @@ impl TryInto<QueryParameters> for (String, DeleteModelQuery) {
         let min_version = if let Some(min_version) = get_model_query.min_version {
             let result: Result<SemanticVersion, _> = min_version.try_into();
 
-            Some(result.unwrap())
+            Some(result?)
         } else {
             None
         };
@@ -60,10 +60,7 @@ pub(crate) async fn delete_model_handler(
 
     let query_parameters = (full_request_url, query.0);
 
-    let deleted_models = data
-        .delete_models(query_parameters.try_into().unwrap())
-        .await
-        .unwrap();
+    let deleted_models = data.delete_models(query_parameters.try_into()?).await?;
 
     if deleted_models.is_empty() {
         return Ok(HttpResponse::NotFound().body("No Model has been deleted."));
