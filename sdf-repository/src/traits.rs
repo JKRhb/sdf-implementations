@@ -6,22 +6,37 @@
 //
 // SPDX-License-Identifier: MIT
 
-use core::panic;
-
 use sdf_data_structures::{model::SdfModel, supplement::SdfSupplement};
 #[cfg(feature = "sqlx")]
 use sqlx::QueryBuilder;
 
-#[cfg(not(feature = "sqlx"))]
-use actix_web::Error;
-
 use crate::error::SdfRepositoryError;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq)]
 pub(crate) struct SemanticVersion {
     pub(crate) major: u16,
     pub(crate) minor: u16,
     pub(crate) patch: u16,
+}
+
+impl PartialOrd for SemanticVersion {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match self.major.partial_cmp(&other.major) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        match self.minor.partial_cmp(&other.minor) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        self.patch.partial_cmp(&other.patch)
+    }
+}
+
+impl Ord for SemanticVersion {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
+    }
 }
 
 impl Into<Vec<u16>> for SemanticVersion {
@@ -90,7 +105,7 @@ impl TryFrom<String> for SemanticVersion {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct QueryParameters {
     pub(crate) namespace: String,
     pub(crate) lineage: Option<String>,
@@ -131,6 +146,46 @@ impl QueryParameters {
         }
 
         query_builder
+    }
+
+    pub(crate) fn filter_model(self, sdf_model: &SdfModel) -> Result<bool, SdfRepositoryError> {
+        // let result: (_, Vec<_>) = sdf_models.into_iter().partition(|sdf_model| {
+        let version = sdf_model.get_version().unwrap();
+
+        let parsed_semantic_version: Result<SemanticVersion, _> = version.try_into();
+        let semantic_version = parsed_semantic_version.unwrap();
+
+        if let Some(version) = &self.version {
+            if version != &semantic_version {
+                return Ok(false);
+            }
+        }
+
+        if let Some(min_version) = &self.min_version {
+            if min_version > &semantic_version {
+                return Ok(false);
+            }
+        }
+
+        if let Some(max_version) = &self.max_version {
+            if max_version < &semantic_version {
+                return Ok(false);
+            }
+        }
+
+        if let Some(exclusive_min_version) = &self.exclusive_min_version {
+            if exclusive_min_version >= &semantic_version {
+                return Ok(false);
+            }
+        }
+
+        if let Some(exclusive_max_version) = &self.exclusive_max_version {
+            if exclusive_max_version <= &semantic_version {
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
     }
 }
 
@@ -173,7 +228,8 @@ pub(crate) trait QueryHandler {
 
     async fn get_model(&self, query: QueryParameters) -> Result<SdfModel, SdfRepositoryError>;
 
-    async fn get_models(self, query: QueryParameters) -> Result<Vec<SdfModel>, SdfRepositoryError>;
+    async fn get_models(&self, query: QueryParameters)
+    -> Result<Vec<SdfModel>, SdfRepositoryError>;
 
     async fn insert_model(&self, model: SdfModel) -> Result<SdfModel, SdfRepositoryError>;
 

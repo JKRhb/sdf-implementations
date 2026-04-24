@@ -131,7 +131,7 @@ impl QueryHandler for web::Data<AppState> {
         self.insert_model(updated_model).await
     }
 
-    async fn get_models(self, query: QueryParameters) -> Result<Vec<SdfModel>, SdfRepositoryError> {
+    async fn get_models(&self, query: QueryParameters) -> Result<Vec<SdfModel>, SdfRepositoryError> {
         let mut query_builder = query.create_query_builder("SELECT * FROM models");
 
         let query = query_builder.build_query_as::<DatabaseRow>();

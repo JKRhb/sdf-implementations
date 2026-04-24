@@ -6,13 +6,16 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::{cmp::Ordering, sync::atomic::AtomicI32};
+use std::sync::atomic::AtomicI32;
 
 use actix_web::web;
 use sdf_data_structures::{model::SdfModel, supplement::SdfSupplement};
-use semver::Version;
 
-use crate::{error::SdfRepositoryError, models::AppState, traits::QueryHandler};
+use crate::{
+    error::SdfRepositoryError,
+    models::AppState,
+    traits::{QueryHandler, SemanticVersion},
+};
 
 static MODEL_ID_SEQ: AtomicI32 = AtomicI32::new(0);
 
@@ -23,6 +26,16 @@ pub struct SdfModelEntry {
     pub version: String,
     pub namespace: String,
     pub lineage: Option<String>,
+}
+
+impl From<SdfModel> for SdfModelEntry {
+    fn from(sdf_model: SdfModel) -> Self {
+        let version = sdf_model.get_version().unwrap();
+        let namespace = sdf_model.get_default_namespace_url().unwrap();
+        let lineage = sdf_model.get_lineage();
+
+        SdfModelEntry::new(sdf_model, version, namespace, lineage)
+    }
 }
 
 impl PartialOrd for SdfModelEntry {
@@ -61,71 +74,6 @@ impl SdfModelEntry {
     }
 }
 
-pub(crate) fn add_model_to_state(
-    models: &mut Vec<SdfModelEntry>,
-    new_sdf_model: SdfModel,
-) -> actix_web::Result<()> {
-    let existing_sdf_models = models
-        .iter()
-        .map(|sdf_model_entry| &sdf_model_entry.model)
-        .collect::<Vec<_>>();
-
-    let lineage_exists = check_for_existing_lineage(&new_sdf_model, existing_sdf_models.clone())?;
-
-    if lineage_exists {
-        return Err(actix_web::error::ErrorBadRequest("Lineage already exists!"));
-    }
-
-    let lineage = new_sdf_model.get_lineage();
-
-    let models_from_different_lineage = existing_sdf_models
-        .into_iter()
-        .filter(|existing_sdf_model| lineage != existing_sdf_model.get_lineage())
-        .collect::<Vec<_>>();
-
-    let collisions = new_sdf_model.determine_global_name_collisions(models_from_different_lineage);
-
-    let namespace = new_sdf_model
-        .get_default_namespace_url()
-        .ok_or(actix_web::error::ErrorBadRequest("Missing namespace URL!"))?;
-    let version = new_sdf_model
-        .get_version()
-        .ok_or(actix_web::error::ErrorBadRequest("Missing version!"))?;
-
-    if collisions.is_empty() {
-        models.push(SdfModelEntry::new(
-            new_sdf_model.clone(),
-            version,
-            namespace,
-            lineage,
-        ));
-        return Ok(());
-    }
-
-    Err(actix_web::error::ErrorBadRequest(
-        "Definition collisions detected!",
-    ))
-}
-
-pub(crate) fn check_for_existing_lineage(
-    new_sdf_model: &SdfModel,
-    existing_sdf_models: Vec<&SdfModel>,
-) -> actix_web::Result<bool> {
-    let target_namespace_url = new_sdf_model.get_default_namespace_url();
-    let lineage = new_sdf_model.get_lineage();
-
-    for existing_sdf_model in existing_sdf_models {
-        let existing_target_namespace_url = existing_sdf_model.get_default_namespace_url();
-        let existing_lineage = existing_sdf_model.get_lineage();
-
-        if target_namespace_url == existing_target_namespace_url && lineage == existing_lineage {
-            return Ok(true);
-        }
-    }
-
-    Ok(false)
-}
-
 pub(crate) fn find_model_matching_supplement<'a>(
     sdf_supplement: &'a SdfSupplement,
     sdf_models: Vec<&'a SdfModel>,
@@ -149,20 +97,18 @@ pub(crate) fn find_model_matching_supplement<'a>(
         .collect::<Vec<_>>();
 
     filtered_models.sort_by(|a, b| {
-        let first_version = a
+        let first_version: Option<SemanticVersion> = a
             .get_version()
-            .and_then(|x| Version::parse(x.as_str()).ok());
-        let second_version = b
+            .and_then(|x| Some(SemanticVersion::try_from(x).unwrap()));
+        let second_version: Option<SemanticVersion> = b
             .get_version()
-            .and_then(|x| Version::parse(x.as_str()).ok());
+            .and_then(|x| Some(SemanticVersion::try_from(x).unwrap()));
 
         match (first_version, second_version) {
             (None, None) => std::cmp::Ordering::Equal,
             (Some(_), None) => std::cmp::Ordering::Greater,
             (None, Some(_)) => std::cmp::Ordering::Less,
-            (Some(first_version), Some(second_version)) => {
-                first_version.cmp_precedence(&second_version)
-            }
+            (Some(first_version), Some(second_version)) => first_version.cmp(&second_version),
         }
     });
 
@@ -171,45 +117,24 @@ pub(crate) fn find_model_matching_supplement<'a>(
     Ok(result)
 }
 
-fn compare_semantic_version(
-    model_version: &Version,
-    other_version: &str,
-    precedence: Vec<Ordering>,
-) -> actix_web::Result<bool> {
-    let parsed_other_version = semver::Version::parse(other_version).map_err(|_| {
-        SdfRepositoryError::ModelQueryError(format!(
-            "Version {other_version} does not adhere to semantic versioning!"
-        ))
-    })?;
+fn check_for_existing_lineage(
+    new_sdf_model: &SdfModel,
+    existing_sdf_models: Vec<&SdfModel>,
+) -> Result<bool, SdfRepositoryError> {
+    let target_namespace_url = new_sdf_model.get_default_namespace_url();
+    let lineage = new_sdf_model.get_lineage();
 
-    Ok(precedence.contains(&model_version.cmp_precedence(&parsed_other_version)))
+    for existing_sdf_model in existing_sdf_models {
+        let existing_target_namespace_url = existing_sdf_model.get_default_namespace_url();
+        let existing_lineage = existing_sdf_model.get_lineage();
+
+        if target_namespace_url == existing_target_namespace_url && lineage == existing_lineage {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
 }
-
-// impl DeleteModelQuery {
-//     fn compare_with_model_entry(
-//         &self,
-//         sdf_model_entry: &&SdfModelEntry,
-//     ) -> actix_web::Result<bool> {
-//         if sdf_model_entry.lineage != self.lineage {
-//             return Ok(false);
-//         }
-
-//         if let Some(min_version) = &self.min_version {
-//             let model_version = semver::Version::parse(&sdf_model_entry.version)
-//                 .map_err(|_| SdfRepositoryError::InternalModelQueryError())?;
-
-//             let parsed_min_version = semver::Version::parse(min_version).map_err(|_| {
-//                 SdfRepositoryError::ModelQueryError(format!(
-//                     "Version {min_version} does not adhere to semantic versioning!"
-//                 ))
-//             })?;
-
-//             return Ok(parsed_min_version <= model_version);
-//         }
-
-//         Ok(true)
-//     }
-// }
 
 impl QueryHandler for web::Data<AppState> {
     async fn initialize(self) -> Result<(), SdfRepositoryError> {
@@ -220,32 +145,125 @@ impl QueryHandler for web::Data<AppState> {
         self,
         query: crate::traits::QueryParameters,
     ) -> Result<Vec<SdfModel>, SdfRepositoryError> {
-        todo!()
+        let mut models_entries = self.models.lock().unwrap();
+
+        let model_iterator = models_entries.iter().cloned();
+
+        let (deleted_models, remaining_models): (Vec<SdfModelEntry>, Vec<SdfModelEntry>) =
+            model_iterator.partition(|x| query.clone().filter_model(&x.model).unwrap());
+
+        models_entries.clear();
+
+        models_entries.append(&mut (remaining_models.into()));
+
+        Ok(deleted_models
+            .iter()
+            .map(|x| x.model.clone())
+            .collect::<Vec<_>>())
     }
 
     async fn get_model(
         &self,
         query: crate::traits::QueryParameters,
     ) -> Result<SdfModel, SdfRepositoryError> {
-        todo!()
+        let first_result = self.get_models(query).await?.first().unwrap().clone();
+
+        Ok(first_result)
     }
 
     async fn get_models(
-        self,
+        &self,
         query: crate::traits::QueryParameters,
     ) -> Result<Vec<SdfModel>, SdfRepositoryError> {
-        todo!()
+        let mutex = self.models.lock().unwrap();
+
+        let existing_sdf_models = mutex.iter().collect::<Vec<_>>();
+
+        let filtered_models: Vec<SdfModel> = existing_sdf_models
+            .into_iter()
+            .filter(|x| query.clone().filter_model(&x.model).unwrap())
+            .map(|x| x.model.clone())
+            .collect();
+
+        Ok(filtered_models)
     }
 
     async fn insert_model(&self, model: SdfModel) -> Result<SdfModel, SdfRepositoryError> {
-        todo!()
+        let mutex = self.models.lock().unwrap();
+
+        let existing_sdf_models = mutex
+            .iter()
+            .map(|sdf_model_entry| &sdf_model_entry.model)
+            .collect::<Vec<_>>();
+
+        let lineage_exists = check_for_existing_lineage(&model, existing_sdf_models.clone())?;
+
+        if lineage_exists {
+            return Err(SdfRepositoryError::InternalModelQueryError());
+        }
+
+        let lineage = model.get_lineage();
+
+        let models_from_different_lineage = existing_sdf_models
+            .into_iter()
+            .filter(|existing_sdf_model| lineage != existing_sdf_model.get_lineage())
+            .collect::<Vec<_>>();
+
+        let collisions = model.determine_global_name_collisions(models_from_different_lineage);
+
+        let namespace =
+            model
+                .get_default_namespace_url()
+                .ok_or(SdfRepositoryError::ModelQueryError(
+                    "Missing namespace URL!".to_string(),
+                ))?;
+        let version = model
+            .get_version()
+            .ok_or(SdfRepositoryError::ModelQueryError(
+                "Missing version!".to_string(),
+            ))?;
+
+        if collisions.is_empty() {
+            self.models.lock().unwrap().push(SdfModelEntry::new(
+                model.clone(),
+                version,
+                namespace,
+                lineage,
+            ));
+            return Ok(model);
+        }
+
+        Err(SdfRepositoryError::ModelQueryError(
+            "Definition collisions detected!".to_string(),
+        ))
     }
 
     async fn update_model(
         &self,
         sdf_supplement: &SdfSupplement,
     ) -> Result<SdfModel, SdfRepositoryError> {
-        todo!()
+        let mut mutex = self.models.lock().unwrap();
+
+        let existing_sdf_models = mutex
+            .iter()
+            .map(|sdf_model_entry| &sdf_model_entry.model)
+            .collect::<Vec<_>>();
+
+        let model_matching_supplement =
+            find_model_matching_supplement(sdf_supplement, existing_sdf_models)
+                .unwrap()
+                .unwrap()
+                .clone();
+
+        let new_model = model_matching_supplement
+            .update_sdf_model(sdf_supplement)
+            .unwrap();
+
+        let sdf_model_entry = SdfModelEntry::from(new_model.clone());
+
+        mutex.push(sdf_model_entry);
+
+        Ok(new_model)
     }
 }
 
