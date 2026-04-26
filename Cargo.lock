@@ -3246,6 +3246,7 @@ dependencies = [
  "dotenv",
  "dotenv_config",
  "env_logger",
+ "itertools",
  "json-merge-patch",
  "json-pointer",
  "log",
