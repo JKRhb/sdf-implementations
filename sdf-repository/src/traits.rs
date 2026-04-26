@@ -15,17 +15,11 @@ use sdf_data_structures::traits::SdfDataStructure;
 
 use crate::error::SdfRepositoryError;
 
-#[derive(Debug, PartialEq, Clone, Copy, Eq)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq, PartialOrd)]
 pub(crate) struct SemanticVersion {
     pub(crate) major: u16,
     pub(crate) minor: u16,
     pub(crate) patch: u16,
-}
-
-impl PartialOrd for SemanticVersion {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
 }
 
 impl Ord for SemanticVersion {
@@ -94,7 +88,6 @@ impl TryFrom<String> for SemanticVersion {
             .collect();
 
         version_numbers
-            // TODO
             .map_err(|x| SdfRepositoryError::ModelQuery(x.to_string()))?
             .try_into()
     }
