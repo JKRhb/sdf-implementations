@@ -53,15 +53,15 @@ impl TryInto<QueryParameters> for GetModelsQuery {
             .map(|exclusive_max_version| exclusive_max_version.try_into())
             .transpose()?;
 
-        Ok(QueryParameters {
-            namespace: self.namespace,
-            lineage: self.lineage,
+        Ok(QueryParameters::new(
+            self.namespace,
+            self.lineage,
             version,
             min_version,
             max_version,
             exclusive_min_version,
             exclusive_max_version,
-        })
+        ))
     }
 }
 

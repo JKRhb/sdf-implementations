@@ -26,23 +26,25 @@ impl TryInto<QueryParameters> for (String, DeleteModelQuery) {
     type Error = SdfRepositoryError;
 
     fn try_into(self) -> Result<QueryParameters, SdfRepositoryError> {
-        let namespace = self.0;
-        let get_model_query = self.1;
+        let delete_model_query = self.1;
 
-        let min_version = get_model_query
+        let namespace = self.0;
+        let lineage = delete_model_query.lineage;
+
+        let min_version = delete_model_query
             .min_version
             .map(|min_version| min_version.try_into())
             .transpose()?;
 
-        Ok(QueryParameters {
-            namespace: namespace,
-            lineage: get_model_query.lineage,
-            version: None,
+        Ok(QueryParameters::new(
+            namespace,
+            lineage,
+            None,
             min_version,
-            max_version: None,
-            exclusive_min_version: None,
-            exclusive_max_version: None,
-        })
+            None,
+            None,
+            None,
+        ))
     }
 }
 

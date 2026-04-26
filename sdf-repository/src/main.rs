@@ -17,7 +17,6 @@ use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
     config::Config,
-    error::SdfRepositoryError,
     handlers::{
         delete_models::delete_model_handler, get_model::get_model, get_models::get_models,
         post_model::post_model_handler, post_supplement::post_supplement_handler,
@@ -46,7 +45,7 @@ async fn main() -> std::io::Result<()> {
 
     dotenv::dotenv().ok();
 
-    let config = Config::init().map_err(|x| std::io::Error::new(std::io::ErrorKind::Other, x))?;
+    let config = Config::init().map_err(std::io::Error::other)?;
 
     #[cfg(feature = "sqlx")]
     let pool = PgPool::connect(&config.database_url)

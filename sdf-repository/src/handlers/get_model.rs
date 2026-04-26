@@ -30,8 +30,10 @@ impl TryInto<QueryParameters> for (String, GetModelQuery) {
     type Error = Error;
 
     fn try_into(self) -> Result<QueryParameters, Error> {
-        let namespace = self.0;
         let get_model_query = self.1;
+
+        let namespace = self.0;
+        let lineage = get_model_query.lineage;
 
         let version = get_model_query
             .version
@@ -58,15 +60,15 @@ impl TryInto<QueryParameters> for (String, GetModelQuery) {
             .map(|exclusive_max_version| exclusive_max_version.try_into())
             .transpose()?;
 
-        Ok(QueryParameters {
-            namespace: namespace,
-            lineage: get_model_query.lineage,
+        Ok(QueryParameters::new(
+            namespace,
+            lineage,
             version,
             min_version,
             max_version,
             exclusive_min_version,
             exclusive_max_version,
-        })
+        ))
     }
 }
 

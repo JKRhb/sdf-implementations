@@ -12,7 +12,10 @@ use serde_json::Value;
 
 use crate::{
     error::SdfRepositoryError,
-    models::AppState,
+    models::{
+        AppState,
+        initial_models::create_initial_models,
+    },
     traits::{QueryHandler, QueryParameters, SemanticVersion},
 };
 
@@ -40,59 +43,11 @@ impl QueryHandler for web::Data<AppState> {
         let database_is_empty = rows_affected == 0;
 
         if database_is_empty {
-            use sdf_data_structures::model::SdfModel;
-            use serde_json::json;
+            let initial_models = create_initial_models(&self.config)?;
 
-            let mut namespace_url = self.config.get_base_url();
-
-            namespace_url.push_str("/sdf/sensor");
-
-            let initial_model = serde_json::from_value::<SdfModel>(json!({
-                "info": {
-                    "lineage": "foobar",
-                    "version": "1.1.0"
-                },
-                "namespace": {
-                    "sensors": namespace_url
-                },
-                "defaultNamespace": "sensors",
-                "sdfObject": {
-                    "envSensor": {
-                        "sdfContext": {
-                            "ipAdress": {
-                                "type": "string"
-                            },
-                            "deviceName": {
-                                "type": "string"
-                            },
-                            "unit": {
-                                "type": "string"
-                            }
-                        },
-                        "sdfProperty": {
-                            "temperature": {
-                                "type": "string",
-                                "sdfProtocolMap": {
-                                    "coap": {
-                                        "sdfParameters": {
-                                            "ipAddress": "#/sdfObject/envSensor/sdfContext/ipAddress"
-                                        },
-                                        "sdfOperations": {
-                                            "read": {
-                                                "method": "GET",
-                                                "href": "/temperature",
-                                                "contentType": [60],
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }))?;
-
-            self.insert_model(initial_model).await?;
+            for initial_model in initial_models {
+                self.insert_model(initial_model).await?;
+            }
         }
 
         Ok(())
@@ -111,7 +66,7 @@ impl QueryHandler for web::Data<AppState> {
         serde_json::from_value::<SdfModel>(model_json).map_err(|error| {
             {
                 sqlx::Error::Decode(
-                    format!("Error while deserializing SDF model: {}", error.to_string()).into(),
+                    format!("Error while deserializing SDF model: {}", error).into(),
                 )
             }
             .into()
@@ -126,7 +81,11 @@ impl QueryHandler for web::Data<AppState> {
 
         let updated_model = target_model
             .update_sdf_model(sdf_supplement)
-            .map_err(|error| SdfRepositoryError::ModelQueryError("TODO".to_string()))?;
+            .map_err(|error| {
+                SdfRepositoryError::ModelQuery(format!(
+                    "Error while updating SDF model: {error}"
+                ))
+            })?;
 
         self.insert_model(updated_model).await
     }
@@ -165,13 +124,15 @@ impl QueryHandler for web::Data<AppState> {
         Ok(results?)
     }
 
-    async fn insert_model(&self, model: SdfModel) -> Result<SdfModel, SdfRepositoryError> {
-        let version = if let Some(version) = model.get_version() {
+    async fn insert_model(&self, sdf_model: SdfModel) -> Result<SdfModel, SdfRepositoryError> {
+        let version = if let Some(version) = sdf_model.get_version() {
             let semantic_version: SemanticVersion = version.try_into()?;
 
             semantic_version
         } else {
-            return Err(SdfRepositoryError::ModelQueryError("TODO".to_string()));
+            return Err(SdfRepositoryError::ModelQuery(
+                "Missing version definition in SDF Model.".to_string(),
+            ));
         };
 
         let version_vector: Vec<i32> = version.into();
@@ -179,13 +140,13 @@ impl QueryHandler for web::Data<AppState> {
         sqlx::query(
             "INSERT INTO models (model, version, namespace, lineage) VALUES ($1, $2, $3, $4)",
         )
-        .bind(sqlx::types::Json(&model))
+        .bind(sqlx::types::Json(&sdf_model))
         .bind(version_vector)
-        .bind(&model.get_default_namespace_url())
-        .bind(&model.get_lineage())
+        .bind(sdf_model.get_default_namespace_url())
+        .bind(sdf_model.get_lineage())
         .execute(&self.database)
         .await?;
 
-        Ok(model)
+        Ok(sdf_model)
     }
 }

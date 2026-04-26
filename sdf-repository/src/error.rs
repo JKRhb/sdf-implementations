@@ -13,44 +13,48 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum SdfRepositoryError {
-    #[error("error processing query parameters: {0}")]
-    ModelQueryError(String),
+    #[error("Error processing query parameters: {0}")]
+    ModelQuery(String),
 
-    #[error("An internal error ocurred")]
-    InternalModelQueryError(),
+    #[error("An error ocurred while interacting with the database: {0}")]
+    Database(String),
+
+    #[error("An error occurred during the serialization or deserialization of JSON: {0}")]
+    Json(String),
 }
 
 impl ResponseError for SdfRepositoryError {
     fn status_code(&self) -> StatusCode {
         match self {
-            SdfRepositoryError::ModelQueryError(_) => StatusCode::BAD_REQUEST,
-            SdfRepositoryError::InternalModelQueryError() => StatusCode::INTERNAL_SERVER_ERROR,
+            SdfRepositoryError::ModelQuery(_) => StatusCode::BAD_REQUEST,
+            SdfRepositoryError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            SdfRepositoryError::Json(_) => StatusCode::BAD_REQUEST,
         }
     }
 }
 
 impl From<serde_json::Error> for SdfRepositoryError {
-    fn from(value: serde_json::Error) -> Self {
-        todo!()
+    fn from(error: serde_json::Error) -> Self {
+        Self::Json(error.to_string())
     }
 }
 
 impl From<SdfRepositoryError> for std::io::Error {
-    fn from(value: SdfRepositoryError) -> Self {
-        todo!()
+    fn from(error: SdfRepositoryError) -> Self {
+        std::io::Error::other(error)
     }
 }
 
 #[cfg(feature = "sqlx")]
 impl From<sqlx::error::Error> for SdfRepositoryError {
-    fn from(value: sqlx::error::Error) -> Self {
-        todo!()
+    fn from(error: sqlx::error::Error) -> Self {
+        SdfRepositoryError::Database(error.to_string())
     }
 }
 
 #[cfg(feature = "sqlx")]
 impl From<MigrateError> for SdfRepositoryError {
-    fn from(value: MigrateError) -> Self {
-        todo!()
+    fn from(error: MigrateError) -> Self {
+        SdfRepositoryError::Database(error.to_string())
     }
 }

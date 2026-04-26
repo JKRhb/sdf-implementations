@@ -10,6 +10,9 @@ use sdf_data_structures::{model::SdfModel, supplement::SdfSupplement};
 #[cfg(feature = "sqlx")]
 use sqlx::QueryBuilder;
 
+#[cfg(not(feature = "sqlx"))]
+use sdf_data_structures::traits::SdfDataStructure;
+
 use crate::error::SdfRepositoryError;
 
 #[derive(Debug, PartialEq, Clone, Copy, Eq)]
@@ -21,15 +24,7 @@ pub(crate) struct SemanticVersion {
 
 impl PartialOrd for SemanticVersion {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match self.major.partial_cmp(&other.major) {
-            Some(core::cmp::Ordering::Equal) => {}
-            ord => return ord,
-        }
-        match self.minor.partial_cmp(&other.minor) {
-            Some(core::cmp::Ordering::Equal) => {}
-            ord => return ord,
-        }
-        self.patch.partial_cmp(&other.patch)
+        Some(self.cmp(other))
     }
 }
 
@@ -39,21 +34,21 @@ impl Ord for SemanticVersion {
     }
 }
 
-impl Into<Vec<u16>> for SemanticVersion {
-    fn into(self) -> Vec<u16> {
-        vec![self.major, self.minor, self.patch]
+impl From<SemanticVersion> for Vec<u16> {
+    fn from(val: SemanticVersion) -> Self {
+        vec![val.major, val.minor, val.patch]
     }
 }
 
-impl Into<Vec<i32>> for SemanticVersion {
-    fn into(self) -> Vec<i32> {
-        vec![self.major.into(), self.minor.into(), self.patch.into()]
+impl From<SemanticVersion> for Vec<i32> {
+    fn from(val: SemanticVersion) -> Self {
+        vec![val.major.into(), val.minor.into(), val.patch.into()]
     }
 }
 
-impl Into<String> for SemanticVersion {
-    fn into(self) -> String {
-        format!("{}.{}.{}", self.major, self.minor, self.patch)
+impl From<SemanticVersion> for String {
+    fn from(val: SemanticVersion) -> Self {
+        format!("{}.{}.{}", val.major, val.minor, val.patch)
     }
 }
 
@@ -63,18 +58,18 @@ impl TryFrom<Vec<u16>> for SemanticVersion {
     fn try_from(value: Vec<u16>) -> Result<Self, Self::Error> {
         let mut iterator = value.into_iter();
 
-        let major = iterator.next().ok_or(SdfRepositoryError::ModelQueryError(
+        let major = iterator.next().ok_or(SdfRepositoryError::ModelQuery(
             "Invalid first sematic version component".to_string(),
         ))?;
-        let minor = iterator.next().ok_or(SdfRepositoryError::ModelQueryError(
+        let minor = iterator.next().ok_or(SdfRepositoryError::ModelQuery(
             "Invalid second sematic version component".to_string(),
         ))?;
-        let patch = iterator.next().ok_or(SdfRepositoryError::ModelQueryError(
+        let patch = iterator.next().ok_or(SdfRepositoryError::ModelQuery(
             "Invalid third sematic version component".to_string(),
         ))?;
 
         if iterator.next().is_some() {
-            return Err(SdfRepositoryError::ModelQueryError(
+            return Err(SdfRepositoryError::ModelQuery(
                 "Unexpected fourth version element".to_string(),
             ));
         }
@@ -100,23 +95,43 @@ impl TryFrom<String> for SemanticVersion {
 
         version_numbers
             // TODO
-            .map_err(|x| SdfRepositoryError::ModelQueryError(x.to_string()))?
+            .map_err(|x| SdfRepositoryError::ModelQuery(x.to_string()))?
             .try_into()
     }
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct QueryParameters {
-    pub(crate) namespace: String,
-    pub(crate) lineage: Option<String>,
-    pub(crate) version: Option<SemanticVersion>,
-    pub(crate) min_version: Option<SemanticVersion>,
-    pub(crate) max_version: Option<SemanticVersion>,
-    pub(crate) exclusive_min_version: Option<SemanticVersion>,
-    pub(crate) exclusive_max_version: Option<SemanticVersion>,
+    namespace: String,
+    lineage: Option<String>,
+    version: Option<SemanticVersion>,
+    min_version: Option<SemanticVersion>,
+    max_version: Option<SemanticVersion>,
+    exclusive_min_version: Option<SemanticVersion>,
+    exclusive_max_version: Option<SemanticVersion>,
 }
 
 impl QueryParameters {
+    pub fn new(
+        namespace: String,
+        lineage: Option<String>,
+        version: Option<SemanticVersion>,
+        min_version: Option<SemanticVersion>,
+        max_version: Option<SemanticVersion>,
+        exclusive_min_version: Option<SemanticVersion>,
+        exclusive_max_version: Option<SemanticVersion>,
+    ) -> Self {
+        QueryParameters {
+            namespace,
+            lineage,
+            version,
+            min_version,
+            max_version,
+            exclusive_max_version,
+            exclusive_min_version,
+        }
+    }
+
     #[cfg(feature = "sqlx")]
     pub fn create_query_builder<'a>(
         self,
@@ -130,7 +145,7 @@ impl QueryParameters {
         query_builder.push(" AND lineage IS NOT DISTINCT FROM ");
         query_builder.push_bind(self.lineage);
 
-        for (comparator, semantic_version) in vec![
+        for (comparator, semantic_version) in [
             ("=", self.version),
             (">=", self.min_version),
             ("<=", self.max_version),
@@ -148,41 +163,48 @@ impl QueryParameters {
         query_builder
     }
 
+    #[cfg(not(feature = "sqlx"))]
     pub(crate) fn filter_model(self, sdf_model: &SdfModel) -> Result<bool, SdfRepositoryError> {
-        // let result: (_, Vec<_>) = sdf_models.into_iter().partition(|sdf_model| {
         let version = sdf_model.get_version().unwrap();
+
+        let namespace = sdf_model.get_target_namespace().unwrap().unwrap();
+        let lineage = sdf_model.get_lineage();
+
+        if self.namespace != namespace && self.lineage != lineage {
+            return Ok(false);
+        }
 
         let parsed_semantic_version: Result<SemanticVersion, _> = version.try_into();
         let semantic_version = parsed_semantic_version.unwrap();
 
-        if let Some(version) = &self.version {
-            if version != &semantic_version {
-                return Ok(false);
-            }
+        if let Some(version) = &self.version
+            && version != &semantic_version
+        {
+            return Ok(false);
         }
 
-        if let Some(min_version) = &self.min_version {
-            if min_version > &semantic_version {
-                return Ok(false);
-            }
+        if let Some(min_version) = &self.min_version
+            && min_version > &semantic_version
+        {
+            return Ok(false);
         }
 
-        if let Some(max_version) = &self.max_version {
-            if max_version < &semantic_version {
-                return Ok(false);
-            }
+        if let Some(max_version) = &self.max_version
+            && max_version < &semantic_version
+        {
+            return Ok(false);
         }
 
-        if let Some(exclusive_min_version) = &self.exclusive_min_version {
-            if exclusive_min_version >= &semantic_version {
-                return Ok(false);
-            }
+        if let Some(exclusive_min_version) = &self.exclusive_min_version
+            && exclusive_min_version >= &semantic_version
+        {
+            return Ok(false);
         }
 
-        if let Some(exclusive_max_version) = &self.exclusive_max_version {
-            if exclusive_max_version <= &semantic_version {
-                return Ok(false);
-            }
+        if let Some(exclusive_max_version) = &self.exclusive_max_version
+            && exclusive_max_version <= &semantic_version
+        {
+            return Ok(false);
         }
 
         Ok(true)
@@ -203,7 +225,7 @@ impl TryFrom<&SdfSupplement> for QueryParameters {
 
         let namespace = value
             .get_default_namespace_url()
-            .ok_or(SdfRepositoryError::ModelQueryError("TODO".to_string()))?;
+            .ok_or(SdfRepositoryError::ModelQuery("TODO".to_string()))?;
         let lineage = value.get_lineage();
 
         Ok(QueryParameters {

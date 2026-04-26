@@ -13,7 +13,7 @@ use sdf_data_structures::{model::SdfModel, supplement::SdfSupplement};
 
 use crate::{
     error::SdfRepositoryError,
-    models::AppState,
+    models::{AppState, initial_models::create_initial_models},
     traits::{QueryHandler, SemanticVersion},
 };
 
@@ -97,12 +97,16 @@ pub(crate) fn find_model_matching_supplement<'a>(
         .collect::<Vec<_>>();
 
     filtered_models.sort_by(|a, b| {
-        let first_version: Option<SemanticVersion> = a
+        let first_version = a
             .get_version()
-            .and_then(|x| Some(SemanticVersion::try_from(x).unwrap()));
-        let second_version: Option<SemanticVersion> = b
+            .map(SemanticVersion::try_from)
+            .transpose()
+            .unwrap();
+        let second_version = b
             .get_version()
-            .and_then(|x| Some(SemanticVersion::try_from(x).unwrap()));
+            .map(SemanticVersion::try_from)
+            .transpose()
+            .unwrap();
 
         match (first_version, second_version) {
             (None, None) => std::cmp::Ordering::Equal,
@@ -138,7 +142,13 @@ fn check_for_existing_lineage(
 
 impl QueryHandler for web::Data<AppState> {
     async fn initialize(self) -> Result<(), SdfRepositoryError> {
-        todo!()
+        let initial_models = create_initial_models(&self.config)?;
+
+        for initial_model in initial_models {
+            self.insert_model(initial_model).await?;
+        }
+
+        Ok(())
     }
 
     async fn delete_models(
@@ -149,12 +159,12 @@ impl QueryHandler for web::Data<AppState> {
 
         let model_iterator = models_entries.iter().cloned();
 
-        let (deleted_models, remaining_models): (Vec<SdfModelEntry>, Vec<SdfModelEntry>) =
+        let (deleted_models, mut remaining_models): (Vec<SdfModelEntry>, Vec<SdfModelEntry>) =
             model_iterator.partition(|x| query.clone().filter_model(&x.model).unwrap());
 
         models_entries.clear();
 
-        models_entries.append(&mut (remaining_models.into()));
+        models_entries.append(&mut remaining_models);
 
         Ok(deleted_models
             .iter()
@@ -199,7 +209,9 @@ impl QueryHandler for web::Data<AppState> {
         let lineage_exists = check_for_existing_lineage(&model, existing_sdf_models.clone())?;
 
         if lineage_exists {
-            return Err(SdfRepositoryError::InternalModelQueryError());
+            return Err(SdfRepositoryError::ModelQuery(
+                "Lineage already exists".to_string(),
+            ));
         }
 
         let lineage = model.get_lineage();
@@ -211,17 +223,14 @@ impl QueryHandler for web::Data<AppState> {
 
         let collisions = model.determine_global_name_collisions(models_from_different_lineage);
 
-        let namespace =
-            model
-                .get_default_namespace_url()
-                .ok_or(SdfRepositoryError::ModelQueryError(
-                    "Missing namespace URL!".to_string(),
-                ))?;
-        let version = model
-            .get_version()
-            .ok_or(SdfRepositoryError::ModelQueryError(
-                "Missing version!".to_string(),
+        let namespace = model
+            .get_default_namespace_url()
+            .ok_or(SdfRepositoryError::ModelQuery(
+                "Missing namespace URL!".to_string(),
             ))?;
+        let version = model.get_version().ok_or(SdfRepositoryError::ModelQuery(
+            "Missing version!".to_string(),
+        ))?;
 
         if collisions.is_empty() {
             self.models.lock().unwrap().push(SdfModelEntry::new(
@@ -233,7 +242,7 @@ impl QueryHandler for web::Data<AppState> {
             return Ok(model);
         }
 
-        Err(SdfRepositoryError::ModelQueryError(
+        Err(SdfRepositoryError::ModelQuery(
             "Definition collisions detected!".to_string(),
         ))
     }
