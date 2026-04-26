@@ -7,25 +7,19 @@
 // SPDX-License-Identifier: MIT
 
 use sdf_data_structures::{model::SdfModel, supplement::SdfSupplement};
+use serde::Serialize;
 #[cfg(feature = "sqlx")]
 use sqlx::QueryBuilder;
 
-#[cfg(not(feature = "sqlx"))]
-use sdf_data_structures::traits::SdfDataStructure;
-
 use crate::error::SdfRepositoryError;
+#[cfg(not(feature = "sqlx"))]
+use crate::models::in_memory::SdfModelEntry;
 
-#[derive(Debug, PartialEq, Clone, Copy, Eq, PartialOrd)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq, PartialOrd, Ord, Serialize)]
 pub(crate) struct SemanticVersion {
     pub(crate) major: u16,
     pub(crate) minor: u16,
     pub(crate) patch: u16,
-}
-
-impl Ord for SemanticVersion {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap()
-    }
 }
 
 impl From<SemanticVersion> for Vec<u16> {
@@ -157,50 +151,47 @@ impl QueryParameters {
     }
 
     #[cfg(not(feature = "sqlx"))]
-    pub(crate) fn filter_model(self, sdf_model: &SdfModel) -> Result<bool, SdfRepositoryError> {
-        let version = sdf_model.get_version().unwrap();
+    pub(crate) fn filter_model_entry(self, sdf_model_entry: &SdfModelEntry) -> bool {
+        let model_version = sdf_model_entry.version;
 
-        let namespace = sdf_model.get_target_namespace().unwrap().unwrap();
-        let lineage = sdf_model.get_lineage();
+        let namespace = sdf_model_entry.namespace.clone();
+        let lineage = sdf_model_entry.lineage.clone();
 
         if self.namespace != namespace && self.lineage != lineage {
-            return Ok(false);
+            return false;
         }
 
-        let parsed_semantic_version: Result<SemanticVersion, _> = version.try_into();
-        let semantic_version = parsed_semantic_version.unwrap();
-
         if let Some(version) = &self.version
-            && version != &semantic_version
+            && version != &model_version
         {
-            return Ok(false);
+            return false;
         }
 
         if let Some(min_version) = &self.min_version
-            && min_version > &semantic_version
+            && min_version > &model_version
         {
-            return Ok(false);
+            return false;
         }
 
         if let Some(max_version) = &self.max_version
-            && max_version < &semantic_version
+            && max_version < &model_version
         {
-            return Ok(false);
+            return false;
         }
 
         if let Some(exclusive_min_version) = &self.exclusive_min_version
-            && exclusive_min_version >= &semantic_version
+            && exclusive_min_version >= &model_version
         {
-            return Ok(false);
+            return false;
         }
 
         if let Some(exclusive_max_version) = &self.exclusive_max_version
-            && exclusive_max_version <= &semantic_version
+            && exclusive_max_version <= &model_version
         {
-            return Ok(false);
+            return false;
         }
 
-        Ok(true)
+        true
     }
 }
 

@@ -21,6 +21,9 @@ pub enum SdfRepositoryError {
 
     #[error("An error occurred during the serialization or deserialization of JSON: {0}")]
     Json(String),
+
+    #[error("An error occurred during the internal conversion of an SDF model: {0}")]
+    ModelConversion(String),
 }
 
 impl ResponseError for SdfRepositoryError {
@@ -29,6 +32,7 @@ impl ResponseError for SdfRepositoryError {
             SdfRepositoryError::ModelQuery(_) => StatusCode::BAD_REQUEST,
             SdfRepositoryError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
             SdfRepositoryError::Json(_) => StatusCode::BAD_REQUEST,
+            SdfRepositoryError::ModelConversion(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
