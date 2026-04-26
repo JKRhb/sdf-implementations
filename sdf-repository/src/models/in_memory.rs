@@ -114,7 +114,7 @@ impl ModelFilter for web::Data<AppState> {
             .transpose()?;
         let supplement_namespace_url = sdf_supplement.get_default_namespace_url();
 
-        let mutex = self.models.lock().unwrap();
+        let mutex = self.models.lock()?;
 
         Ok(mutex
             .iter()
@@ -135,7 +135,7 @@ impl ModelFilter for web::Data<AppState> {
         let target_namespace_url = new_sdf_model.get_default_namespace_url();
         let lineage = new_sdf_model.get_lineage();
 
-        let mutex = self.models.lock().unwrap();
+        let mutex = self.models.lock()?;
 
         for existing_sdf_model_entry in mutex.iter() {
             let existing_target_namespace_url = Some(existing_sdf_model_entry.namespace.clone());
@@ -166,7 +166,7 @@ impl QueryHandler for web::Data<AppState> {
         self,
         query: crate::traits::QueryParameters,
     ) -> Result<Vec<SdfModel>, SdfRepositoryError> {
-        let mut models_entries = self.models.lock().unwrap();
+        let mut models_entries = self.models.lock()?;
 
         let model_iterator = models_entries.iter().cloned();
 
@@ -187,7 +187,14 @@ impl QueryHandler for web::Data<AppState> {
         &self,
         query: crate::traits::QueryParameters,
     ) -> Result<SdfModel, SdfRepositoryError> {
-        let first_result = self.get_models(query).await?.first().unwrap().clone();
+        let first_result = self
+            .get_models(query)
+            .await?
+            .first()
+            .ok_or(SdfRepositoryError::ModelQuery(
+                "Did not find a model matching the query".to_string(),
+            ))?
+            .clone();
 
         Ok(first_result)
     }
@@ -196,7 +203,7 @@ impl QueryHandler for web::Data<AppState> {
         &self,
         query: crate::traits::QueryParameters,
     ) -> Result<Vec<SdfModel>, SdfRepositoryError> {
-        let mutex = self.models.lock().unwrap();
+        let mutex = self.models.lock()?;
 
         let existing_sdf_models = mutex.iter().collect::<Vec<_>>();
 
@@ -220,7 +227,7 @@ impl QueryHandler for web::Data<AppState> {
 
         let lineage = model.get_lineage();
 
-        let mut mutex = self.models.lock().unwrap();
+        let mut mutex = self.models.lock()?;
 
         let existing_sdf_models = mutex
             .iter()
@@ -273,11 +280,13 @@ impl QueryHandler for web::Data<AppState> {
         let new_model = model_matching_supplement
             .model
             .update_sdf_model(sdf_supplement)
-            .unwrap();
+            .map_err(|error| {
+                SdfRepositoryError::ModelQuery(format!("Failed to update model: {error}"))
+            })?;
 
         let sdf_model_entry = SdfModelEntry::try_from(new_model.clone())?;
 
-        let mut mutex = self.models.lock().unwrap();
+        let mut mutex = self.models.lock()?;
 
         mutex.push(sdf_model_entry);
 

@@ -24,6 +24,9 @@ pub enum SdfRepositoryError {
 
     #[error("An error occurred during the internal conversion of an SDF model: {0}")]
     ModelConversion(String),
+
+    #[error("An internal error occurred: {0}")]
+    InternalFailure(String),
 }
 
 impl ResponseError for SdfRepositoryError {
@@ -33,6 +36,7 @@ impl ResponseError for SdfRepositoryError {
             SdfRepositoryError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
             SdfRepositoryError::Json(_) => StatusCode::BAD_REQUEST,
             SdfRepositoryError::ModelConversion(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            SdfRepositoryError::InternalFailure(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
@@ -46,6 +50,12 @@ impl From<serde_json::Error> for SdfRepositoryError {
 impl From<SdfRepositoryError> for std::io::Error {
     fn from(error: SdfRepositoryError) -> Self {
         std::io::Error::other(error)
+    }
+}
+
+impl<T> From<std::sync::PoisonError<T>> for SdfRepositoryError {
+    fn from(_: std::sync::PoisonError<T>) -> Self {
+        SdfRepositoryError::InternalFailure("Failed to acquire Mutex lock".to_string())
     }
 }
 
