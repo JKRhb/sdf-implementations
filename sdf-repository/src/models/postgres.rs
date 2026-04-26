@@ -12,10 +12,7 @@ use serde_json::Value;
 
 use crate::{
     error::SdfRepositoryError,
-    models::{
-        AppState,
-        initial_models::create_initial_models,
-    },
+    models::{AppState, initial_models::create_initial_models},
     traits::{QueryHandler, QueryParameters, SemanticVersion},
 };
 
@@ -82,9 +79,7 @@ impl QueryHandler for web::Data<AppState> {
         let updated_model = target_model
             .update_sdf_model(sdf_supplement)
             .map_err(|error| {
-                SdfRepositoryError::ModelQuery(format!(
-                    "Error while updating SDF model: {error}"
-                ))
+                SdfRepositoryError::ModelQuery(format!("Error while updating SDF model: {error}"))
             })?;
 
         self.insert_model(updated_model).await

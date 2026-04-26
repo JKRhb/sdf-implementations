@@ -199,7 +199,7 @@ impl QueryHandler for web::Data<AppState> {
     }
 
     async fn insert_model(&self, model: SdfModel) -> Result<SdfModel, SdfRepositoryError> {
-        let mutex = self.models.lock().unwrap();
+        let mut mutex = self.models.lock().unwrap();
 
         let existing_sdf_models = mutex
             .iter()
@@ -233,7 +233,7 @@ impl QueryHandler for web::Data<AppState> {
         ))?;
 
         if collisions.is_empty() {
-            self.models.lock().unwrap().push(SdfModelEntry::new(
+            mutex.push(SdfModelEntry::new(
                 model.clone(),
                 version,
                 namespace,
