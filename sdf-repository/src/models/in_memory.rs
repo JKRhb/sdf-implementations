@@ -296,136 +296,180 @@ impl QueryHandler for web::Data<AppState> {
 
 #[cfg(test)]
 mod tests {
-    // use std::collections::HashMap;
+    use std::{collections::HashMap, sync::Mutex};
 
-    // use sdf_data_structures::{
-    //     model::{InfoBlockBuilder, SdfModelBuilder, SdfObjectBuilder, SdfProperty},
-    //     supplement::{self, AmendmentBuilder, SdfSupplementBuilder},
-    // };
-    // use serde_json::json;
+    use actix_web::web;
+    use sdf_data_structures::{
+        model::{InfoBlockBuilder, SdfModel, SdfModelBuilder, SdfObjectBuilder, SdfProperty},
+        supplement::{self, AmendmentBuilder, SdfSupplementBuilder},
+    };
+    use serde_json::json;
 
-    // #[test]
-    // fn test_supplement_model_association() {
-    //     let model1 = SdfModelBuilder::default()
-    //         .info(InfoBlockBuilder::default().lineage("foo").build().unwrap())
-    //         .namespace(HashMap::from_iter(vec![(
-    //             "cap".to_string(),
-    //             "https://example.com/capability/cap".to_string(),
-    //         )]))
-    //         .default_namespace("cap")
-    //         .sdf_object(HashMap::from([(
-    //             "foo".to_string(),
-    //             SdfObjectBuilder::default()
-    //                 .sdf_property(HashMap::from([("bar".to_string(), SdfProperty::default())]))
-    //                 .build()
-    //                 .unwrap(),
-    //         )]))
-    //         .build()
-    //         .unwrap();
+    use crate::{
+        config::Config,
+        models::{
+            AppState,
+            in_memory::{ModelFilter, SdfModelEntry},
+        },
+    };
 
-    //     let model2 = SdfModelBuilder::default()
-    //         .info(InfoBlockBuilder::default().lineage("bar").build().unwrap())
-    //         .namespace(HashMap::from_iter(vec![(
-    //             "cap".to_string(),
-    //             "https://example.com/capability/cap".to_string(),
-    //         )]))
-    //         .default_namespace("cap")
-    //         .sdf_object(HashMap::from([(
-    //             "bar".to_string(),
-    //             SdfObjectBuilder::default()
-    //                 .sdf_property(HashMap::from([("foo".to_string(), SdfProperty::default())]))
-    //                 .build()
-    //                 .unwrap(),
-    //         )]))
-    //         .build()
-    //         .unwrap();
+    #[test]
+    fn test_supplement_model_association() {
+        let model1: SdfModelEntry = SdfModelBuilder::default()
+            .info(
+                InfoBlockBuilder::default()
+                    .lineage("foo")
+                    .version("1.0.0")
+                    .build()
+                    .unwrap(),
+            )
+            .namespace(HashMap::from_iter(vec![(
+                "cap".to_string(),
+                "https://example.com/capability/cap".to_string(),
+            )]))
+            .default_namespace("cap")
+            .sdf_object(HashMap::from([(
+                "foo".to_string(),
+                SdfObjectBuilder::default()
+                    .sdf_property(HashMap::from([("bar".to_string(), SdfProperty::default())]))
+                    .build()
+                    .unwrap(),
+            )]))
+            .build()
+            .unwrap()
+            .try_into()
+            .unwrap();
 
-    //     let sdf_models = vec![&model1, &model2];
+        let model2: SdfModelEntry = SdfModelBuilder::default()
+            .info(
+                InfoBlockBuilder::default()
+                    .lineage("bar")
+                    .version("1.0.0")
+                    .build()
+                    .unwrap(),
+            )
+            .namespace(HashMap::from_iter(vec![(
+                "cap".to_string(),
+                "https://example.com/capability/cap".to_string(),
+            )]))
+            .default_namespace("cap")
+            .sdf_object(HashMap::from([(
+                "bar".to_string(),
+                SdfObjectBuilder::default()
+                    .sdf_property(HashMap::from([("foo".to_string(), SdfProperty::default())]))
+                    .build()
+                    .unwrap(),
+            )]))
+            .build()
+            .unwrap()
+            .try_into()
+            .unwrap();
 
-    //     let sdf_supplement = SdfSupplementBuilder::default()
-    //         .info(
-    //             supplement::InfoBlockBuilder::default()
-    //                 .lineage("bar")
-    //                 .build()
-    //                 .unwrap(),
-    //         )
-    //         .namespace(HashMap::from_iter(vec![(
-    //             "cap".to_string(),
-    //             "https://example.com/capability/cap".to_string(),
-    //         )]))
-    //         .default_namespace("cap")
-    //         .amend(vec![
-    //             HashMap::from([(
-    //                 "#/sdfObject/foo".into(),
-    //                 AmendmentBuilder::default()
-    //                     .delta(json!(
-    //                         {
-    //                             "id": 3200
-    //                         }
-    //                     ))
-    //                     .build()
-    //                     .unwrap(),
-    //             )]),
-    //             HashMap::from([(
-    //                 "#/sdfObject/foo/sdfProperty/bar".into(),
-    //                 AmendmentBuilder::default()
-    //                     .delta(json!(
-    //                         {
-    //                             "id": 5500
-    //                         }
-    //                     ))
-    //                     .build()
-    //                     .unwrap(),
-    //             )]),
-    //         ])
-    //         .build()
-    //         .unwrap();
+        let app_state = web::Data::<AppState>::new(AppState {
+            models: Mutex::new(vec![model1, model2.clone()]),
+            config: Config::default(),
+        });
 
-    //     let found_model = find_model_matching_supplement(&sdf_supplement, sdf_models)
-    //         .unwrap()
-    //         .unwrap();
+        let sdf_supplement = SdfSupplementBuilder::default()
+            .info(
+                supplement::InfoBlockBuilder::default()
+                    .lineage("bar")
+                    .target_version("1.0.0")
+                    .build()
+                    .unwrap(),
+            )
+            .namespace(HashMap::from_iter(vec![(
+                "cap".to_string(),
+                "https://example.com/capability/cap".to_string(),
+            )]))
+            .default_namespace("cap")
+            .amend(vec![
+                HashMap::from([(
+                    "#/sdfObject/foo".into(),
+                    AmendmentBuilder::default()
+                        .delta(json!(
+                            {
+                                "id": 3200
+                            }
+                        ))
+                        .build()
+                        .unwrap(),
+                )]),
+                HashMap::from([(
+                    "#/sdfObject/foo/sdfProperty/bar".into(),
+                    AmendmentBuilder::default()
+                        .delta(json!(
+                            {
+                                "id": 5500
+                            }
+                        ))
+                        .build()
+                        .unwrap(),
+                )]),
+            ])
+            .build()
+            .unwrap();
 
-    //     assert_eq!(found_model, &model2);
-    // }
+        let found_model = app_state
+            .find_model_matching_supplement(&sdf_supplement)
+            .unwrap()
+            .unwrap();
 
-    // #[test]
-    // fn test_supplement_model_association_with_no_match() {
-    //     let model = SdfModelBuilder::default()
-    //         .info(InfoBlockBuilder::default().lineage("foo").build().unwrap())
-    //         .namespace(HashMap::from_iter(vec![(
-    //             "cap".to_string(),
-    //             "https://example.com/capability/cap".to_string(),
-    //         )]))
-    //         .default_namespace("cap")
-    //         .sdf_object(HashMap::from([(
-    //             "bar".to_string(),
-    //             SdfObjectBuilder::default()
-    //                 .sdf_property(HashMap::from([("foo".to_string(), SdfProperty::default())]))
-    //                 .build()
-    //                 .unwrap(),
-    //         )]))
-    //         .build()
-    //         .unwrap();
+        assert_eq!(found_model, model2);
+    }
 
-    //     let sdf_models = vec![&model];
+    #[test]
+    fn test_supplement_model_association_with_no_match() {
+        let model: SdfModelEntry = SdfModelBuilder::default()
+            .info(
+                InfoBlockBuilder::default()
+                    .lineage("foo")
+                    .version("1.0.0")
+                    .build()
+                    .unwrap(),
+            )
+            .namespace(HashMap::from_iter(vec![(
+                "cap".to_string(),
+                "https://example.com/capability/cap".to_string(),
+            )]))
+            .default_namespace("cap")
+            .sdf_object(HashMap::from([(
+                "bar".to_string(),
+                SdfObjectBuilder::default()
+                    .sdf_property(HashMap::from([("foo".to_string(), SdfProperty::default())]))
+                    .build()
+                    .unwrap(),
+            )]))
+            .build()
+            .unwrap()
+            .try_into()
+            .unwrap();
 
-    //     let sdf_supplement = SdfSupplementBuilder::default()
-    //         .info(
-    //             supplement::InfoBlockBuilder::default()
-    //                 .lineage("bar")
-    //                 .build()
-    //                 .unwrap(),
-    //         )
-    //         .namespace(HashMap::from_iter(vec![(
-    //             "cap".to_string(),
-    //             "https://example.com/capability/cap".to_string(),
-    //         )]))
-    //         .default_namespace("cap")
-    //         .build()
-    //         .unwrap();
+        let app_state = web::Data::<AppState>::new(AppState {
+            models: Mutex::new(vec![model]),
+            config: Config::default(),
+        });
 
-    //     let found_model = find_model_matching_supplement(&sdf_supplement, sdf_models).unwrap();
+        let sdf_supplement = SdfSupplementBuilder::default()
+            .info(
+                supplement::InfoBlockBuilder::default()
+                    .lineage("bar")
+                    .version("1.0.0")
+                    .build()
+                    .unwrap(),
+            )
+            .namespace(HashMap::from_iter(vec![(
+                "cap".to_string(),
+                "https://example.com/capability/cap".to_string(),
+            )]))
+            .default_namespace("cap")
+            .build()
+            .unwrap();
 
-    //     assert_eq!(found_model, None);
-    // }
+        let found_model = app_state
+            .find_model_matching_supplement(&sdf_supplement)
+            .unwrap();
+
+        assert_eq!(found_model, None);
+    }
 }
