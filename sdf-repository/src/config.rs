@@ -9,7 +9,7 @@
 use dotenv_config::EnvConfig;
 
 /// The configuration that is used by the SDF Repository.
-#[derive(Debug, EnvConfig, Clone)]
+#[derive(Debug, EnvConfig, Clone, Default)]
 pub(crate) struct Config {
     /// The IP address to bind to.
     #[env_config(default = "127.0.0.1")]
