@@ -27,3 +27,4 @@ thiserror.workspace = true
 dotenv = "0.15.0"
 dotenv_config = "0.2.3"
 sqlx = { version = "0.8.6", optional = true, features = ["runtime-tokio-rustls", "derive", "postgres", "macros", "uuid"] }
+itertools = "0.14.0"

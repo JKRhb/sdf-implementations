@@ -7,13 +7,11 @@
 // SPDX-License-Identifier: MIT
 
 use actix_web::{
-    HttpResponse, Responder, error::ErrorInternalServerError, guard::GuardContext,
-    http::header::ContentType, post, web,
+    HttpResponse, Responder, guard::GuardContext, http::header::ContentType, post, web,
 };
 use sdf_data_structures::model::SdfModel;
-use semver::Version;
 
-use crate::{AppState, handlers::verify_content_type, models::add_model_to_state};
+use crate::{AppState, handlers::verify_content_type, traits::QueryHandler};
 
 fn verify_sdf_model_content_type(ctx: &GuardContext) -> bool {
     verify_content_type(ctx, "application/sdf+json")
@@ -25,26 +23,11 @@ pub(crate) async fn post_model_handler(
     req: web::Json<SdfModel>,
     data: web::Data<AppState>,
 ) -> actix_web::Result<impl Responder> {
-    let mut sdf_model = req.0;
+    let sdf_model = req.0;
 
-    if let Some(info_block) = &sdf_model.info {
-        if let Some(version) = &info_block.version {
-            Version::parse(version).map_err(|x| {
-                actix_web::error::ErrorBadRequest(format!("Invalid version quality: {}", x))
-            })?;
-        }
-    } else {
-        sdf_model = sdf_model.update_version("1.0.0".to_string());
-    }
+    let inserted_model = data.insert_model(sdf_model).await?;
 
-    let payload = serde_json::to_string(&sdf_model)
-        .map_err(|_| ErrorInternalServerError("Internal server error"))?;
-
-    let mut models = data
-        .models
-        .lock()
-        .map_err(|_| ErrorInternalServerError("Internal Server Error"))?;
-    add_model_to_state(&mut models, sdf_model)?;
+    let payload = serde_json::to_string(&inserted_model)?;
 
     Ok(HttpResponse::Created()
         .content_type(ContentType::json())

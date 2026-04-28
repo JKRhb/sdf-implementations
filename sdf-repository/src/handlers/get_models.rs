@@ -6,20 +6,15 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::cmp::Ordering;
-
-use actix_web::{
-    HttpResponse, Responder, error::ErrorInternalServerError, get, http::header::ContentType, web,
-};
+use actix_web::error::Error;
+use actix_web::{HttpResponse, Responder, get, http::header::ContentType, web};
 use serde::Deserialize;
 
-use crate::{
-    AppState, error::SdfRepositoryError, handlers::compare_semantic_version, models::SdfModelEntry,
-};
+use crate::{AppState, models::query_parameters::QueryParameters, traits::QueryHandler};
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-struct ModelQuery {
+pub(crate) struct GetModelsQuery {
     namespace: String,
     lineage: Option<String>,
     version: Option<String>,
@@ -29,55 +24,54 @@ struct ModelQuery {
     exclusive_max_version: Option<String>,
 }
 
-impl ModelQuery {
-    fn compare_with_model_entry(
-        &self,
-        sdf_model_entry: &&SdfModelEntry,
-    ) -> actix_web::Result<bool> {
-        if sdf_model_entry.namespace != self.namespace || sdf_model_entry.lineage != self.lineage {
-            return Ok(false);
-        }
+impl TryInto<QueryParameters> for GetModelsQuery {
+    type Error = Error;
 
-        let model_version = semver::Version::parse(&sdf_model_entry.version)
-            .map_err(|_| SdfRepositoryError::InternalModelQueryError())?;
+    fn try_into(self) -> Result<QueryParameters, Error> {
+        let version = self.version.map(|version| version.try_into()).transpose()?;
 
-        for (query_version, ordering) in [
-            (&self.version, vec![Ordering::Equal]),
-            (&self.min_version, vec![Ordering::Greater, Ordering::Equal]),
-            (&self.max_version, vec![Ordering::Less, Ordering::Equal]),
-            (&self.exclusive_min_version, vec![Ordering::Greater]),
-            (&self.exclusive_max_version, vec![Ordering::Less]),
-        ] {
-            if let Some(version) = query_version
-                && !compare_semantic_version(&model_version, version, ordering)?
-            {
-                return Ok(false);
-            }
-        }
+        let min_version = self
+            .min_version
+            .map(|min_version| min_version.try_into())
+            .transpose()?;
 
-        Ok(true)
+        let max_version = self
+            .max_version
+            .map(|max_version| max_version.try_into())
+            .transpose()?;
+
+        let exclusive_min_version = self
+            .exclusive_min_version
+            .map(|exclusive_min_version| exclusive_min_version.try_into())
+            .transpose()?;
+
+        let exclusive_max_version = self
+            .exclusive_max_version
+            .map(|exclusive_max_version| exclusive_max_version.try_into())
+            .transpose()?;
+
+        Ok(QueryParameters::new(
+            self.namespace,
+            self.lineage,
+            version,
+            min_version,
+            max_version,
+            exclusive_min_version,
+            exclusive_max_version,
+        ))
     }
 }
 
 #[utoipa::path()]
 #[get("/models")]
 pub(crate) async fn get_models(
-    model_query: web::Query<ModelQuery>,
+    model_query: web::Query<GetModelsQuery>,
     data: web::Data<AppState>,
 ) -> actix_web::Result<impl Responder> {
-    let models_entries = data
-        .models
-        .lock()
-        .map_err(|_| ErrorInternalServerError("Internal Server Error"))?;
-    let models = models_entries
-        .iter()
-        .filter(|model_entry| {
-            model_query
-                .compare_with_model_entry(model_entry)
-                .unwrap_or(false)
-        })
-        .collect::<Vec<_>>();
+    let models = data.get_models(model_query.0.try_into()?).await?;
+
     let response = serde_json::to_string(&models)?;
+
     Ok(HttpResponse::Ok()
         .content_type(ContentType::json())
         .body(response))
