@@ -6,13 +6,11 @@
 //
 // SPDX-License-Identifier: MIT
 
-use actix_web::{
-    HttpResponse, Responder, delete, error::ErrorInternalServerError, http::header::ContentType,
-    web,
-};
+use actix_web::{HttpRequest, HttpResponse, Responder, delete, http::header::ContentType, web};
 use serde::Deserialize;
 
-use crate::{AppState, error::SdfRepositoryError, models::SdfModelEntry};
+use crate::error::SdfRepositoryError;
+use crate::{AppState, models::query_parameters::QueryParameters, traits::QueryHandler};
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -21,60 +19,50 @@ struct DeleteModelQuery {
     min_version: Option<String>,
 }
 
-impl DeleteModelQuery {
-    fn compare_with_model_entry(
-        &self,
-        sdf_model_entry: &&SdfModelEntry,
-    ) -> actix_web::Result<bool> {
-        if sdf_model_entry.lineage != self.lineage {
-            return Ok(false);
-        }
+impl TryInto<QueryParameters> for (String, DeleteModelQuery) {
+    type Error = SdfRepositoryError;
 
-        if let Some(min_version) = &self.min_version {
-            let model_version = semver::Version::parse(&sdf_model_entry.version)
-                .map_err(|_| SdfRepositoryError::InternalModelQueryError())?;
+    fn try_into(self) -> Result<QueryParameters, SdfRepositoryError> {
+        let delete_model_query = self.1;
 
-            let parsed_min_version = semver::Version::parse(min_version).map_err(|_| {
-                SdfRepositoryError::ModelQueryError(format!(
-                    "Version {min_version} does not adhere to semantic versioning!"
-                ))
-            })?;
+        let namespace = self.0;
+        let lineage = delete_model_query.lineage;
 
-            return Ok(parsed_min_version <= model_version);
-        }
+        let min_version = delete_model_query
+            .min_version
+            .map(|min_version| min_version.try_into())
+            .transpose()?;
 
-        Ok(true)
+        Ok(QueryParameters::new(
+            namespace,
+            lineage,
+            None,
+            min_version,
+            None,
+            None,
+            None,
+        ))
     }
 }
 
 #[utoipa::path()]
 #[delete("/{tail:.*}")]
 pub(crate) async fn delete_model_handler(
+    req: HttpRequest,
     data: web::Data<AppState>,
-    model_query: web::Query<DeleteModelQuery>,
+    query: web::Query<DeleteModelQuery>,
 ) -> actix_web::Result<impl Responder> {
-    let mut models_entries = data
-        .models
-        .lock()
-        .map_err(|_| ErrorInternalServerError("Internal Server Error"))?;
+    let full_request_url = data.config.get_base_url() + req.path();
 
-    let (deleted_entries, remaining_entries): (_, Vec<_>) = models_entries
-        .iter()
-        .cloned()
-        .partition(|x| model_query.compare_with_model_entry(&x).unwrap_or(false));
+    let query_parameters = (full_request_url, query.0);
 
-    let response =
-        serde_json::to_string(&deleted_entries.iter().map(|x| &x.model).collect::<Vec<_>>())?;
+    let deleted_models = data.delete_models(query_parameters.try_into()?).await?;
 
-    if deleted_entries.is_empty() {
+    if deleted_models.is_empty() {
         return Ok(HttpResponse::NotFound().body("No Model has been deleted."));
     }
 
-    models_entries.clear();
-
-    for remaining_entry in remaining_entries {
-        models_entries.push(remaining_entry);
-    }
+    let response = serde_json::to_string(&deleted_models)?;
 
     Ok(HttpResponse::Ok()
         .content_type(ContentType::json())

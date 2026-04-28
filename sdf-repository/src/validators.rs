@@ -10,7 +10,7 @@ use actix_web::{Error, dev::ServiceRequest, error::ErrorUnauthorized, web};
 use actix_web_httpauth::extractors::basic::BasicAuth;
 use log::{info, warn};
 
-use crate::AppState;
+use crate::persistence::AppState;
 
 pub(crate) async fn basic_authentication_validator(
     req: ServiceRequest,

@@ -12,30 +12,32 @@ use actix_web::{
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
 use env_logger::Env;
-use std::sync::Mutex;
 use utoipa_actix_web::{AppExt, scope};
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
-    config::Config,
     handlers::{
         delete_models::delete_model_handler, get_model::get_model, get_models::get_models,
         post_model::post_model_handler, post_supplement::post_supplement_handler,
     },
-    models::SdfModelEntry,
+    models::config::Config,
+    persistence::AppState,
+    traits::QueryHandler,
     validators::basic_authentication_validator,
 };
 
-mod config;
+#[cfg(not(feature = "sqlx"))]
+use std::sync::Mutex;
+
+#[cfg(feature = "sqlx")]
+use sqlx::PgPool;
+
 mod error;
 mod handlers;
 mod models;
+mod persistence;
+mod traits;
 mod validators;
-
-struct AppState {
-    models: Mutex<Vec<SdfModelEntry>>,
-    config: Config,
-}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -43,12 +45,24 @@ async fn main() -> std::io::Result<()> {
 
     dotenv::dotenv().ok();
 
-    let config = Config::init().unwrap();
+    let config = Config::init().map_err(std::io::Error::other)?;
+
+    #[cfg(feature = "sqlx")]
+    let pool = PgPool::connect(&config.database_url)
+        .await
+        .expect("Unable to connect to database!");
 
     let app_state = web::Data::new(AppState {
+        #[cfg(not(feature = "sqlx"))]
         models: Mutex::new(Vec::new()),
+
         config: config.clone(),
+
+        #[cfg(feature = "sqlx")]
+        database: pool,
     });
+
+    app_state.clone().initialize().await?;
 
     if config.basic_auth_enabled {
         if config.username.is_empty() {
