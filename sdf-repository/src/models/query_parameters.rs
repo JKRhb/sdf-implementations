@@ -10,6 +10,10 @@ use sdf_data_structures::supplement::SdfSupplement;
 
 #[cfg(not(feature = "sqlx"))]
 use crate::persistence::in_memory::SdfModelEntry;
+
+#[cfg(feature = "sqlx")]
+use sqlx::QueryBuilder;
+
 use crate::{error::SdfRepositoryError, models::semantic_version::SemanticVersion};
 
 #[derive(Debug, Clone)]
