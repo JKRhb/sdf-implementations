@@ -76,6 +76,8 @@ impl QueryParameters {
             }
         }
 
+        query_builder.push(" ORDER BY version DESC");
+
         query_builder
     }
 
