@@ -25,7 +25,7 @@ pub(crate) struct Config {
 
     /// The hostname to be used in namespace URLs.
     #[env_config(default = "localhost")]
-    pub(crate) hostname: String,
+    pub(crate) namespace_url_host: String,
 
     /// Whether the port number should be included in the namespace URL.
     #[env_config(default = true)]
@@ -56,7 +56,10 @@ pub(crate) struct Config {
 impl Config {
     /// Returns the base URL that is used for namespace definitions.
     pub(crate) fn get_base_url(&self) -> String {
-        let base_url = format!("{}://{}", self.namespace_uri_scheme, self.hostname);
+        let base_url = format!(
+            "{}://{}",
+            self.namespace_uri_scheme, self.namespace_url_host
+        );
 
         if self.include_port_in_namespace_url {
             format!("{base_url}:{}", self.port)
