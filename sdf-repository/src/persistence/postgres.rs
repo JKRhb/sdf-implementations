@@ -12,8 +12,9 @@ use serde_json::Value;
 
 use crate::{
     error::SdfRepositoryError,
-    models::{AppState, initial_models::create_initial_models},
-    traits::{QueryHandler, QueryParameters, SemanticVersion},
+    models::{query_parameters::QueryParameters, semantic_version::SemanticVersion},
+    persistence::{AppState, initial_models::create_initial_models},
+    traits::QueryHandler,
 };
 
 #[derive(serde::Serialize, Debug, Clone)]
