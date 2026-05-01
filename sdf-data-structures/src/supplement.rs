@@ -159,7 +159,8 @@ pub struct Amendment {
     pub fix: bool,
 
     #[builder(setter(strip_option), default = "PatchMethod::MergePatch")]
-    pub path_method: PatchMethod,
+    #[serde(default)]
+    pub patch_method: PatchMethod,
 }
 
 #[skip_serializing_none]
