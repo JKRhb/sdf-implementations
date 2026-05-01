@@ -6,17 +6,17 @@
 //
 // SPDX-License-Identifier: MIT
 
-use sdf_data_structures::model::SdfModel;
+use sdf_data_structures::{model::SdfModel, supplement::SdfSupplement};
 use serde_json::json;
 
 use crate::{error::SdfRepositoryError, models::config::Config};
 
-pub(crate) fn create_initial_models(config: &Config) -> Result<Vec<SdfModel>, SdfRepositoryError> {
+pub(crate) fn create_initial_model(config: &Config) -> Result<SdfModel, SdfRepositoryError> {
     let mut namespace_url = config.get_base_url();
 
     namespace_url.push_str("/sdf/sensor");
 
-    let first_initial_model = serde_json::from_value::<SdfModel>(json!({
+    let sdf_model = serde_json::from_value::<SdfModel>(json!({
         "info": {
             "lineage": "foobar",
             "version": "1.0.0"
@@ -44,50 +44,58 @@ pub(crate) fn create_initial_models(config: &Config) -> Result<Vec<SdfModel>, Sd
         }
     }))?;
 
-    let second_initial_model = serde_json::from_value::<SdfModel>(json!({
-        "info": {
-            "lineage": "foobar",
-            "version": "1.1.0"
-        },
-        "namespace": {
-            "sensors": namespace_url
-        },
-        "defaultNamespace": "sensors",
-        "sdfObject": {
-            "envSensor": {
-                "sdfContext": {
-                    "ipAdress": {
-                        "type": "string"
+    Ok(sdf_model)
+}
+
+pub(crate) fn create_initial_supplement(
+    config: &Config,
+) -> Result<SdfSupplement, SdfRepositoryError> {
+    let mut namespace_url = config.get_base_url();
+
+    namespace_url.push_str("/sdf/sensor");
+
+    let sdf_supplement = serde_json::from_value::<SdfSupplement>(json!(
+        {
+            "info": {
+                "lineage": "foobar",
+                "targetVersion": "1.0.0"
+            },
+            "namespace": {
+                "sensors": namespace_url
+
+            },
+            "defaultNamespace": "sensors",
+            "amend": [
+                {
+                    "#/sdfObject/envSensor/sdfContext": {
+                        "delta": {
+                            "unit": {
+                                "type": "string"
+                            }
+                        }
                     },
-                    "deviceName": {
-                        "type": "string"
-                    },
-                    "unit": {
-                        "type": "string"
-                    }
-                },
-                "sdfProperty": {
-                    "temperature": {
-                        "type": "string",
-                        "sdfProtocolMap": {
-                            "coap": {
-                                "sdfParameters": {
-                                    "ipAddress": "#/sdfObject/envSensor/sdfContext/ipAddress"
-                                },
-                                "sdfOperations": {
-                                    "read": {
-                                        "method": "GET",
-                                        "href": "/temperature",
-                                        "contentType": [60],
+                    "#/sdfObject/envSensor/sdfProperty/temperature": {
+                        "delta": {
+                            "sdfProtocolMap": {
+                                "coap": {
+                                    "sdfParameters": {
+                                        "ipAddress": "#/sdfObject/envSensor/sdfContext/ipAddress"
+                                    },
+                                    "sdfOperations": {
+                                        "read": {
+                                            "method": "GET",
+                                            "href": "/temperature",
+                                            "contentType": [60]
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
-            }
+            ]
         }
-    }))?;
+    ))?;
 
-    Ok(vec![first_initial_model, second_initial_model])
+    Ok(sdf_supplement)
 }
