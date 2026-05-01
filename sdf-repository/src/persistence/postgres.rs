@@ -13,7 +13,9 @@ use serde_json::Value;
 use crate::{
     error::SdfRepositoryError,
     models::{query_parameters::QueryParameters, semantic_version::SemanticVersion},
-    persistence::{AppState, initial_models::create_initial_models},
+    persistence::{
+        AppState, initial_models::create_initial_model, initial_models::create_initial_supplement,
+    },
     traits::QueryHandler,
 };
 
@@ -41,11 +43,11 @@ impl QueryHandler for web::Data<AppState> {
         let database_is_empty = rows_affected == 0;
 
         if database_is_empty {
-            let initial_models = create_initial_models(&self.config)?;
+            let initial_model = create_initial_model(&self.config)?;
+            self.insert_model(initial_model).await?;
 
-            for initial_model in initial_models {
-                self.insert_model(initial_model).await?;
-            }
+            let initial_supplement = create_initial_supplement(&self.config)?;
+            self.update_model(&initial_supplement).await?;
         }
 
         Ok(())

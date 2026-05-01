@@ -14,9 +14,11 @@ use sdf_data_structures::{model::SdfModel, supplement::SdfSupplement};
 
 use crate::{
     error::SdfRepositoryError,
-    models::query_parameters::QueryParameters,
-    models::semantic_version::SemanticVersion,
-    persistence::{AppState, initial_models::create_initial_models},
+    models::{query_parameters::QueryParameters, semantic_version::SemanticVersion},
+    persistence::{
+        AppState,
+        initial_models::{create_initial_model, create_initial_supplement},
+    },
     traits::QueryHandler,
 };
 
@@ -155,11 +157,13 @@ impl ModelFilter for web::Data<AppState> {
 
 impl QueryHandler for web::Data<AppState> {
     async fn initialize(self) -> Result<(), SdfRepositoryError> {
-        let initial_models = create_initial_models(&self.config)?;
+        let initial_model = create_initial_model(&self.config)?;
 
-        for initial_model in initial_models {
-            self.insert_model(initial_model).await?;
-        }
+        self.insert_model(initial_model).await?;
+
+        let initial_supplement = create_initial_supplement(&self.config)?;
+
+        self.update_model(&initial_supplement).await?;
 
         Ok(())
     }
