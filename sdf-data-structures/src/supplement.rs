@@ -7,7 +7,7 @@ use serde_with::skip_serializing_none;
 
 use crate::{
     traits::{GlobalNameAggregator, SdfDataStructure},
-    util::{default_bool_true, none_extra, skip_bool_true},
+    util::{default_bool_false, none_extra, skip_bool_false},
 };
 
 #[cfg(feature = "utoipa")]
@@ -154,8 +154,11 @@ pub enum PatchMethod {
 pub struct Amendment {
     pub delta: Value,
 
-    #[builder(setter(strip_option), default = "true")]
-    #[serde(default = "default_bool_true", skip_serializing_if = "skip_bool_true")]
+    #[builder(setter(strip_option), default = "false")]
+    #[serde(
+        default = "default_bool_false",
+        skip_serializing_if = "skip_bool_false"
+    )]
     pub fix: bool,
 
     #[builder(setter(strip_option), default = "PatchMethod::MergePatch")]
