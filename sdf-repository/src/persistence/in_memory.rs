@@ -211,6 +211,8 @@ impl QueryHandler for web::Data<AppState> {
         let filtered_models: Vec<_> = existing_sdf_models
             .iter()
             .filter(|x| query.clone().filter_model_entry(x))
+            .sorted_by(|a, b| a.version.cmp(&b.version))
+            .rev()
             .map(|x| x.model.clone())
             .collect();
 
