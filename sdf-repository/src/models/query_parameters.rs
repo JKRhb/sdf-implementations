@@ -88,7 +88,7 @@ impl QueryParameters {
         let namespace = sdf_model_entry.namespace.clone();
         let lineage = sdf_model_entry.lineage.clone();
 
-        if self.namespace != namespace && self.lineage != lineage {
+        if self.namespace != namespace || self.lineage != lineage {
             return false;
         }
 
