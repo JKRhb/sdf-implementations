@@ -138,12 +138,11 @@ impl TryFrom<&SdfSupplement> for QueryParameters {
             None
         };
 
-        let namespace =
-            sdf_supplement
-                .get_default_namespace_url()
-                .ok_or(SdfRepositoryError::ModelQuery(
-                    "No default namespace URL defined for SDF supplement.".to_string(),
-                ))?;
+        let namespace = sdf_supplement.get_default_namespace_url().ok_or(
+            SdfRepositoryError::InputParameters(
+                "No default namespace URL defined for SDF supplement.".to_string(),
+            ),
+        )?;
         let lineage = sdf_supplement.get_lineage();
 
         Ok(QueryParameters {

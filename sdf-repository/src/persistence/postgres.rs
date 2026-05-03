@@ -82,7 +82,9 @@ impl QueryHandler for web::Data<AppState> {
         let updated_model = target_model
             .update_sdf_model(sdf_supplement)
             .map_err(|error| {
-                SdfRepositoryError::ModelQuery(format!("Error while updating SDF model: {error}"))
+                SdfRepositoryError::InputParameters(format!(
+                    "Error while updating SDF model: {error}"
+                ))
             })?;
 
         self.insert_model(updated_model).await
@@ -128,7 +130,7 @@ impl QueryHandler for web::Data<AppState> {
 
             semantic_version
         } else {
-            return Err(SdfRepositoryError::ModelQuery(
+            return Err(SdfRepositoryError::InputParameters(
                 "Missing version definition in SDF Model.".to_string(),
             ));
         };

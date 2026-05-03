@@ -194,9 +194,7 @@ impl QueryHandler for web::Data<AppState> {
             .get_models(query)
             .await?
             .first()
-            .ok_or(SdfRepositoryError::ModelQuery(
-                "Did not find a model matching the query".to_string(),
-            ))?
+            .ok_or(SdfRepositoryError::QueryParameters())?
             .clone();
 
         Ok(first_result)
@@ -223,7 +221,7 @@ impl QueryHandler for web::Data<AppState> {
         let lineage_exists = self.check_for_existing_lineage(&model)?;
 
         if lineage_exists {
-            return Err(SdfRepositoryError::ModelQuery(
+            return Err(SdfRepositoryError::InputParameters(
                 "Lineage already exists".to_string(),
             ));
         }
@@ -244,15 +242,18 @@ impl QueryHandler for web::Data<AppState> {
 
         let collisions = model.determine_global_name_collisions(models_from_different_lineage);
 
-        let namespace = model
-            .get_default_namespace_url()
-            .ok_or(SdfRepositoryError::ModelQuery(
-                "Missing namespace URL!".to_string(),
-            ))?;
+        let namespace =
+            model
+                .get_default_namespace_url()
+                .ok_or(SdfRepositoryError::InputParameters(
+                    "Missing namespace URL!".to_string(),
+                ))?;
 
-        let version = model.get_version().ok_or(SdfRepositoryError::ModelQuery(
-            "Missing version!".to_string(),
-        ))?;
+        let version = model
+            .get_version()
+            .ok_or(SdfRepositoryError::InputParameters(
+                "Missing version!".to_string(),
+            ))?;
 
         let version: SemanticVersion = version.try_into()?;
 
@@ -266,7 +267,7 @@ impl QueryHandler for web::Data<AppState> {
             return Ok(model);
         }
 
-        Err(SdfRepositoryError::ModelQuery(
+        Err(SdfRepositoryError::InputParameters(
             "Definition collisions detected!".to_string(),
         ))
     }
@@ -275,16 +276,15 @@ impl QueryHandler for web::Data<AppState> {
         &self,
         sdf_supplement: &SdfSupplement,
     ) -> Result<SdfModel, SdfRepositoryError> {
-        let model_matching_supplement =
-            self.find_model_matching_supplement(sdf_supplement)?.ok_or(
-                SdfRepositoryError::ModelQuery("Found no model matching supplement!".to_string()),
-            )?;
+        let model_matching_supplement = self
+            .find_model_matching_supplement(sdf_supplement)?
+            .ok_or(SdfRepositoryError::QueryParameters())?;
 
         let new_model = model_matching_supplement
             .model
             .update_sdf_model(sdf_supplement)
             .map_err(|error| {
-                SdfRepositoryError::ModelQuery(format!("Failed to update model: {error}"))
+                SdfRepositoryError::InputParameters(format!("Failed to update model: {error}"))
             })?;
 
         let sdf_model_entry = SdfModelEntry::try_from(new_model.clone())?;

@@ -13,8 +13,11 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum SdfRepositoryError {
-    #[error("Error processing query parameters: {0}")]
-    ModelQuery(String),
+    #[error("Did not find a model matching the query")]
+    QueryParameters(),
+
+    #[error("Error processing input parameters: {0}")]
+    InputParameters(String),
 
     #[error("An error ocurred while interacting with the database: {0}")]
     Database(String),
@@ -32,7 +35,8 @@ pub enum SdfRepositoryError {
 impl ResponseError for SdfRepositoryError {
     fn status_code(&self) -> StatusCode {
         match self {
-            SdfRepositoryError::ModelQuery(_) => StatusCode::BAD_REQUEST,
+            SdfRepositoryError::QueryParameters() => StatusCode::NOT_FOUND,
+            SdfRepositoryError::InputParameters(_) => StatusCode::BAD_REQUEST,
             SdfRepositoryError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
             SdfRepositoryError::Json(_) => StatusCode::BAD_REQUEST,
             SdfRepositoryError::ModelConversion(_) => StatusCode::INTERNAL_SERVER_ERROR,
