@@ -30,7 +30,7 @@ impl TryInto<QueryParameters> for (String, DeleteModelQuery) {
 
         let min_version = delete_model_query
             .min_version
-            .map(|min_version| min_version.try_into())
+            .map(TryInto::try_into)
             .transpose()?;
 
         Ok(QueryParameters::new(
