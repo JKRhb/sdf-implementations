@@ -18,7 +18,7 @@ pub fn verify_sdf_supplement_content_type(ctx: &GuardContext) -> bool {
 }
 
 #[utoipa::path()]
-#[post("/models", guard = "verify_sdf_supplement_content_type")]
+#[post("/supplements", guard = "verify_sdf_supplement_content_type")]
 async fn post_supplement_handler(
     supplement: web::Json<SdfSupplement>,
     data: web::Data<AppState>,

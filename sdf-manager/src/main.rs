@@ -153,7 +153,7 @@ async fn main() -> anyhow::Result<()> {
 
             let mut sdf_repository_url = Url::parse(&target_namespace)?;
 
-            sdf_repository_url.set_path("/api/models");
+            sdf_repository_url.set_path("/api/supplements");
 
             let response = reqwest::Client::new()
                 .post(sdf_repository_url)
