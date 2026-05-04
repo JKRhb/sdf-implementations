@@ -28,7 +28,7 @@ pub(crate) fn create_initial_model(config: &Config) -> Result<SdfModel, SdfRepos
         "sdfObject": {
             "envSensor": {
                 "sdfContext": {
-                    "deviceName": {
+                    "ipAddress": {
                         "type": "string"
                     },
                     "unit": {
@@ -37,7 +37,21 @@ pub(crate) fn create_initial_model(config: &Config) -> Result<SdfModel, SdfRepos
                 },
                 "sdfProperty": {
                     "temperature": {
-                        "type": "string"
+                        "type": "number",
+                        "sdfProtocolMap": {
+                            "coap": {
+                                "sdfParameters": {
+                                    "ipAddress": "#/sdfObject/envSensor/sdfContext/ipAddress"
+                                },
+                                "sdfOperations": {
+                                    "read": {
+                                        "method": "GET",
+                                        "href": "/temperature",
+                                        "contentType": [60]
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -69,27 +83,9 @@ pub(crate) fn create_initial_supplement(
                 {
                     "#/sdfObject/envSensor/sdfContext": {
                         "delta": {
-                            "unit": {
+                            "deviceName": {
                                 "type": "string"
-                            }
-                        }
-                    },
-                    "#/sdfObject/envSensor/sdfProperty/temperature": {
-                        "delta": {
-                            "sdfProtocolMap": {
-                                "coap": {
-                                    "sdfParameters": {
-                                        "ipAddress": "#/sdfObject/envSensor/sdfContext/ipAddress"
-                                    },
-                                    "sdfOperations": {
-                                        "read": {
-                                            "method": "GET",
-                                            "href": "/temperature",
-                                            "contentType": [60]
-                                        }
-                                    }
-                                }
-                            }
+                            },
                         }
                     }
                 }
