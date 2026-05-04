@@ -202,6 +202,7 @@ impl SdfModel {
             "sdfProperty",
             "sdfAction",
             "sdfEvent",
+            "sdfContext",
             "sdfData",
             "label",
             "description",
