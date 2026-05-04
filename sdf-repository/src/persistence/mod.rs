@@ -6,7 +6,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-mod initial_models;
+pub(crate) mod initial_models;
 
 #[cfg(not(feature = "sqlx"))]
 pub(crate) mod in_memory;

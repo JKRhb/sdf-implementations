@@ -12,6 +12,14 @@ use actix_web::{
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
 use env_logger::Env;
+use sdf_data_structures::{model::SdfModel, supplement::SdfSupplement};
+use utoipa::{
+    Modify, OpenApi,
+    openapi::{
+        SecurityRequirement,
+        security::{Http, SecurityScheme},
+    },
+};
 use utoipa_actix_web::{AppExt, scope};
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -21,7 +29,10 @@ use crate::{
         post_model::post_model_handler, post_supplement::post_supplement_handler,
     },
     models::config::Config,
-    persistence::AppState,
+    persistence::{
+        AppState,
+        initial_models::{create_initial_model, create_initial_supplement},
+    },
     traits::QueryHandler,
     validators::basic_authentication_validator,
 };
@@ -38,6 +49,60 @@ mod models;
 mod persistence;
 mod traits;
 mod validators;
+
+static API_TAG: &str = "API Resources";
+static NAMESPACE_TAG: &str = "Namespace Resources";
+
+fn create_example_model() -> SdfModel {
+    let config = Config::init().expect("Invalid configuration.");
+
+    create_initial_model(&config).unwrap()
+}
+
+fn create_example_supplement() -> SdfSupplement {
+    let config = Config::init().expect("Invalid configuration.");
+
+    create_initial_supplement(&config).unwrap()
+}
+
+fn create_example_models() -> Vec<SdfModel> {
+    let config = Config::init().expect("Invalid configuration.");
+
+    let example_model = create_initial_model(&config).unwrap();
+
+    vec![example_model]
+}
+
+#[derive(OpenApi)]
+#[openapi(
+        info(
+          title = "SDF Repository"
+        ),
+        tags(
+            (name = NAMESPACE_TAG, description = "Resources associated with model namespaces."),
+            (name = API_TAG, description = "Resources for the SDF repository API."),
+        ),
+        modifiers(&SecurityAddon)
+    )]
+struct ApiDoc;
+
+struct SecurityAddon;
+
+impl Modify for SecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        let config = Config::init().expect("Invalid configuration.");
+
+        if !config.basic_auth_enabled {
+            return;
+        }
+
+        let components = openapi.components.as_mut().unwrap();
+        components.add_security_scheme(
+            "basic_security",
+            SecurityScheme::Http(Http::new(utoipa::openapi::security::HttpAuthScheme::Basic)),
+        )
+    }
+}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -94,9 +159,44 @@ async fn main() -> std::io::Result<()> {
                 ),
             )
             .openapi_service(|api| {
-                SwaggerUi::new("/swagger-ui/{_:.*}").url("/docs/openapi.json", api)
+                let mut updated_api = ApiDoc::openapi();
+
+                updated_api.merge(api);
+
+                if let Some(path_item) = updated_api.paths.paths.get_mut("/api/models")
+                    && let Some(operation) = path_item.post.as_mut()
+                    && config.basic_auth_enabled
+                {
+                    operation.security = Some(vec![SecurityRequirement::new(
+                        "basic_security",
+                        Vec::<String>::new(),
+                    )]);
+                }
+
+                if let Some(path_item) = updated_api.paths.paths.get_mut("/api/supplements")
+                    && let Some(operation) = path_item.post.as_mut()
+                    && config.basic_auth_enabled
+                {
+                    operation.security = Some(vec![SecurityRequirement::new(
+                        "basic_security",
+                        Vec::<String>::new(),
+                    )]);
+                }
+
+                if let Some(path_item) = updated_api.paths.paths.get_mut("/sdf/{tail}")
+                    && let Some(operation) = path_item.delete.as_mut()
+                    && config.basic_auth_enabled
+                {
+                    operation.security = Some(vec![SecurityRequirement::new(
+                        "basic_security",
+                        Vec::<String>::new(),
+                    )]);
+                }
+
+                SwaggerUi::new("/swagger-ui/{_:.*}").url("/docs/openapi.json", updated_api)
             })
             .into_app()
+            .service(web::redirect("/", "/swagger-ui/"))
     })
     .bind((config.bind_address, config.port))?
     .run()

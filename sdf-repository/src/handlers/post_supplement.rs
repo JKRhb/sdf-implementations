@@ -9,15 +9,25 @@
 use actix_web::{
     HttpResponse, Responder, guard::GuardContext, http::header::ContentType, post, web,
 };
-use sdf_data_structures::supplement::SdfSupplement;
+use sdf_data_structures::{model::SdfModel, supplement::SdfSupplement};
 
-use crate::{AppState, handlers::verify_content_type, traits::QueryHandler};
+use crate::{
+    API_TAG, AppState, create_example_model, create_example_supplement, error::SdfRepositoryError,
+    handlers::verify_content_type, traits::QueryHandler,
+};
 
 pub fn verify_sdf_supplement_content_type(ctx: &GuardContext) -> bool {
     verify_content_type(ctx, "application/sdf-supplement+json")
 }
 
-#[utoipa::path()]
+#[utoipa::path(
+    tag = API_TAG,
+    request_body(content = SdfSupplement, description = "SDF supplement that is supposed to update an existing SDF model", content_type = "application/sdf-supplement+json", example = create_example_supplement),
+    responses(
+        (status = 200, description = "Updated SDF model", body = SdfModel, example = create_example_model),
+        (status = 401, description = "No matching SDF model has been found")
+    )
+)]
 #[post("/supplements", guard = "verify_sdf_supplement_content_type")]
 async fn post_supplement_handler(
     supplement: web::Json<SdfSupplement>,
@@ -27,7 +37,15 @@ async fn post_supplement_handler(
 
     let payload = serde_json::to_string(&updated_model)?;
 
+    let model_location =
+        updated_model
+            .get_default_namespace_url()
+            .ok_or(SdfRepositoryError::InternalFailure(
+                "Missing namespace".to_string(),
+            ))?;
+
     Ok(HttpResponse::Created()
         .content_type(ContentType::json())
+        .insert_header(("Location", model_location))
         .body(payload))
 }
