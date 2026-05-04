@@ -41,18 +41,18 @@ impl TryFrom<Vec<u16>> for SemanticVersion {
     fn try_from(value: Vec<u16>) -> Result<Self, Self::Error> {
         let mut iterator = value.into_iter();
 
-        let major = iterator.next().ok_or(SdfRepositoryError::ModelQuery(
+        let major = iterator.next().ok_or(SdfRepositoryError::InputParameters(
             "Invalid first sematic version component".to_string(),
         ))?;
-        let minor = iterator.next().ok_or(SdfRepositoryError::ModelQuery(
+        let minor = iterator.next().ok_or(SdfRepositoryError::InputParameters(
             "Invalid second sematic version component".to_string(),
         ))?;
-        let patch = iterator.next().ok_or(SdfRepositoryError::ModelQuery(
+        let patch = iterator.next().ok_or(SdfRepositoryError::InputParameters(
             "Invalid third sematic version component".to_string(),
         ))?;
 
         if iterator.next().is_some() {
-            return Err(SdfRepositoryError::ModelQuery(
+            return Err(SdfRepositoryError::InputParameters(
                 "Unexpected fourth version element".to_string(),
             ));
         }
@@ -77,7 +77,7 @@ impl TryFrom<String> for SemanticVersion {
             .collect();
 
         version_numbers
-            .map_err(|x| SdfRepositoryError::ModelQuery(x.to_string()))?
+            .map_err(|x| SdfRepositoryError::InputParameters(x.to_string()))?
             .try_into()
     }
 }
