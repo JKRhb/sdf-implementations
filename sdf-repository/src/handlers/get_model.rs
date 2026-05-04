@@ -32,29 +32,26 @@ impl TryInto<QueryParameters> for (String, GetModelQuery) {
         let namespace = self.0;
         let lineage = get_model_query.lineage;
 
-        let version = get_model_query
-            .version
-            .map(|version| version.try_into())
-            .transpose()?;
+        let version = get_model_query.version.map(TryInto::try_into).transpose()?;
 
         let min_version = get_model_query
             .min_version
-            .map(|min_version| min_version.try_into())
+            .map(TryInto::try_into)
             .transpose()?;
 
         let max_version = get_model_query
             .max_version
-            .map(|max_version| max_version.try_into())
+            .map(TryInto::try_into)
             .transpose()?;
 
         let exclusive_min_version = get_model_query
             .exclusive_min_version
-            .map(|exclusive_min_version| exclusive_min_version.try_into())
+            .map(TryInto::try_into)
             .transpose()?;
 
         let exclusive_max_version = get_model_query
             .exclusive_max_version
-            .map(|exclusive_max_version| exclusive_max_version.try_into())
+            .map(TryInto::try_into)
             .transpose()?;
 
         Ok(QueryParameters::new(

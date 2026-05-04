@@ -130,13 +130,10 @@ impl TryFrom<&SdfSupplement> for QueryParameters {
     type Error = SdfRepositoryError;
 
     fn try_from(sdf_supplement: &SdfSupplement) -> Result<Self, Self::Error> {
-        let version = if let Some(version) = sdf_supplement.get_target_version() {
-            let semantic_version: SemanticVersion = version.try_into()?;
-
-            Some(semantic_version)
-        } else {
-            None
-        };
+        let version = sdf_supplement
+            .get_target_version()
+            .map(TryInto::try_into)
+            .transpose()?;
 
         let namespace = sdf_supplement.get_default_namespace_url().ok_or(
             SdfRepositoryError::InputParameters(

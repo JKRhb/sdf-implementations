@@ -125,15 +125,13 @@ impl QueryHandler for web::Data<AppState> {
     }
 
     async fn insert_model(&self, sdf_model: SdfModel) -> Result<SdfModel, SdfRepositoryError> {
-        let version = if let Some(version) = sdf_model.get_version() {
-            let semantic_version: SemanticVersion = version.try_into()?;
-
-            semantic_version
-        } else {
-            return Err(SdfRepositoryError::InputParameters(
+        let version: SemanticVersion = sdf_model
+            .get_version()
+            .map(TryInto::try_into)
+            .transpose()?
+            .ok_or(SdfRepositoryError::InputParameters(
                 "Missing version definition in SDF Model.".to_string(),
-            ));
-        };
+            ))?;
 
         let version_vector: Vec<i32> = version.into();
 

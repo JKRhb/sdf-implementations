@@ -28,26 +28,20 @@ impl TryInto<QueryParameters> for GetModelsQuery {
     type Error = Error;
 
     fn try_into(self) -> Result<QueryParameters, Error> {
-        let version = self.version.map(|version| version.try_into()).transpose()?;
+        let version = self.version.map(TryInto::try_into).transpose()?;
 
-        let min_version = self
-            .min_version
-            .map(|min_version| min_version.try_into())
-            .transpose()?;
+        let min_version = self.min_version.map(TryInto::try_into).transpose()?;
 
-        let max_version = self
-            .max_version
-            .map(|max_version| max_version.try_into())
-            .transpose()?;
+        let max_version = self.max_version.map(TryInto::try_into).transpose()?;
 
         let exclusive_min_version = self
             .exclusive_min_version
-            .map(|exclusive_min_version| exclusive_min_version.try_into())
+            .map(TryInto::try_into)
             .transpose()?;
 
         let exclusive_max_version = self
             .exclusive_max_version
-            .map(|exclusive_max_version| exclusive_max_version.try_into())
+            .map(TryInto::try_into)
             .transpose()?;
 
         Ok(QueryParameters::new(
