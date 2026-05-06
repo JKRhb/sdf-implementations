@@ -1,6 +1,6 @@
 use esp_idf_hal::temp_sensor::{TempSensorConfig, TempSensorDriver};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Error};
 use serde::Deserialize;
 use serde_json::Number;
 use shtcx::{shtc3, PowerMode};
@@ -69,6 +69,26 @@ impl std::fmt::Display for Unit {
 struct ConfigurationData {
     device_name: Option<String>,
     unit: Option<Unit>,
+}
+
+impl<'a> TryFrom<&'a [u8]> for ConfigurationData {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+        let sdf_message = serde_json::from_slice::<SdfMessage>(value)?;
+
+        let context_definitions = sdf_message.sdf_instance.sdf_context;
+
+        if let Some(context_definitions) = context_definitions {
+            let context_definition_value = serde_json::to_value(context_definitions)?;
+
+            let configuration_data = serde_json::from_value::<Self>(context_definition_value)?;
+
+            return Ok(configuration_data);
+        }
+
+        Err(anyhow::Error::msg("hi"))
+    }
 }
 
 static _SDF_MESSAGE: OnceLock<Mutex<SdfMessage>> = OnceLock::new();
@@ -273,34 +293,24 @@ fn main() -> anyhow::Result<()> {
                 if session.proto() != CoapProtocol::Dtls {
                     response.set_code(CoapResponseCode::NotFound);
                 } else if let Some(data) = request.data() {
-                    if let Ok(sdf_message) = serde_json::from_slice::<SdfMessage>(data) {
-                        let context_definitions = sdf_message.sdf_instance.sdf_context;
+                    if let Ok(configuration_data) = ConfigurationData::try_from(data) {
+                        if let Some(new_device_name) = configuration_data.device_name {
+                            {
+                                let mut device_name = DEVICE_NAME.get().unwrap().lock().unwrap();
 
-                        if let Some(context_definitions) = context_definitions {
-                            let configuration_data = serde_json::from_value::<ConfigurationData>(
-                                serde_json::to_value(context_definitions).unwrap(),
-                            )
-                            .unwrap();
+                                device_name.clear();
 
-                            if let Some(new_device_name) = configuration_data.device_name {
-                                {
-                                    let mut device_name =
-                                        DEVICE_NAME.get().unwrap().lock().unwrap();
-
-                                    device_name.clear();
-
-                                    device_name.push_str(&new_device_name);
-                                }
+                                device_name.push_str(&new_device_name);
                             }
+                        }
 
-                            if let Some(new_unit) = configuration_data.unit {
-                                {
-                                    let mut unit = UNIT.get().unwrap().lock().unwrap();
+                        if let Some(new_unit) = configuration_data.unit {
+                            {
+                                let mut unit = UNIT.get().unwrap().lock().unwrap();
 
-                                    unit.clear();
+                                unit.clear();
 
-                                    unit.push_str(&new_unit.to_string());
-                                }
+                                unit.push_str(&new_unit.to_string());
                             }
                         }
 
