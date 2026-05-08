@@ -1,6 +1,6 @@
 use esp_idf_hal::temp_sensor::{TempSensorConfig, TempSensorDriver};
 
-use anyhow::{anyhow, Error};
+use anyhow::anyhow;
 use serde::Deserialize;
 use serde_json::Number;
 use shtcx::{shtc3, PowerMode};
@@ -228,13 +228,16 @@ fn main() -> anyhow::Result<()> {
     let i2c = I2cDriver::new(i2c, sda, scl, &config)?;
     let mut sht = shtc3(i2c);
     let _device_id = sht.device_identifier().unwrap();
-    let sensor_main = Arc::new(Mutex::new(sht));
-    let sensor = sensor_main.clone();
-    sensor
-        .lock()
-        .unwrap()
-        .start_measurement(PowerMode::NormalMode)
-        .unwrap();
+    let sensor = Arc::new(Mutex::new(sht));
+
+    {
+        sensor
+            .clone()
+            .lock()
+            .unwrap()
+            .start_measurement(PowerMode::NormalMode)
+            .unwrap();
+    }
 
     let cfg = TempSensorConfig::default();
     let mut temp = TempSensorDriver::new(&cfg, peripherals.temp_sensor)?;
