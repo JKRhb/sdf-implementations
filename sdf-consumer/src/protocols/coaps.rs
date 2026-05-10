@@ -6,18 +6,4 @@
 //
 // SPDX-License-Identifier: MIT
 
-mod cli;
-mod protocols;
-mod operation;
-pub(crate) mod error;
-
-use clap::Parser;
-
-use crate::{
-    cli::Cli,
-};
-
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    Cli::parse().handle_command().await
-}
+pub(crate) struct CoapsProtocolMapping {}

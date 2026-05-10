@@ -1,20 +1,15 @@
-use std::sync::Arc;
+// Copyright 2026 Jan Romann
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT.
+//
+// SPDX-License-Identifier: MIT
 
-use crate::{
-    SdfConsumerError,
-    protocol_mappings::{Operation, SupportedProtocols},
-};
+use crate::{operation::Operation, protocols::SupportedProtocols};
 use clap::Parser;
-use coap::{
-    UdpCoAPClient,
-    client::CoAPClient,
-    dtls::UdpDtlsConfig,
-    request::{Method, RequestBuilder},
-};
-use serde_json::Value;
-use std::net::ToSocketAddrs;
+use reqwest::Url;
 use thiserror::Error;
-use webrtc_dtls::{cipher_suite::CipherSuiteId, config::Config};
 
 /// Domain-specific errors
 #[derive(Error, Debug)]
@@ -34,7 +29,7 @@ pub(crate) struct Cli {
     pub(crate) operation: Operation,
 
     /// URL pointing to a resource retrieving instance-related messages.
-    pub(crate) instance_url: String,
+    pub(crate) instance_url: Url,
 
     /// JSON Pointer to the affordance that is to be used.
     ///
@@ -50,76 +45,79 @@ pub(crate) struct Cli {
 }
 
 impl Cli {
-    // TODO: Maybe refactor this function
-    pub(crate) fn get_protocol_preference(&self) -> Vec<SupportedProtocols> {
-        let preferred_protocol = self.preferred_protocol.unwrap_or(SupportedProtocols::Coap);
+    pub(crate) async fn handle_command(self) -> anyhow::Result<()> {
+        self.operation
+            .handle_operation(
+                self.instance_url,
+                self.preferred_protocol,
+                self.affordance_pointer,
+            )
+            .await?;
 
-        let mut protocol_order = vec![preferred_protocol];
+        // let sdf_message = self.obtain_sdf_message().await?;
 
-        for protocol in [SupportedProtocols::Coap, SupportedProtocols::Http] {
-            if protocol_order.contains(&protocol) {
-                continue;
-            }
+        // let protocol_order = self.get_protocol_preference();
 
-            protocol_order.push(protocol);
-        }
+        // let model_url = sdf_message
+        //     .get_sdf_model_url()?
+        //     .context("Missing SDF Model URL in SDF Message")?;
 
-        protocol_order
-    }
+        // let sdf_model = reqwest::get(model_url).await?.json::<SdfModel>().await?;
 
-    pub(crate) async fn obtain_sdf_instance(&self) -> anyhow::Result<Value> {
-        let instance_url = &self.instance_url;
+        // let entry_point_pointer = sdf_message.get_entry_point();
 
-        if instance_url.starts_with("http") {
-            let sdf_instance = reqwest::get(instance_url).await?.json::<Value>().await?;
+        // let entry_point_definition = sdf_model.resolve_entry_point_from_sdf_message(sdf_message)?;
 
-            return Ok(sdf_instance);
-        } else if instance_url.starts_with("coaps") {
-            let config = Config {
-                psk: Some(Arc::new(|_| Ok("secretPSK".as_bytes().to_vec()))),
-                cipher_suites: vec![CipherSuiteId::Tls_Psk_With_Aes_128_Ccm_8],
-                psk_identity_hint: Some("identity".as_bytes().to_vec()),
-                ..Default::default()
-            };
+        // if let Operation::ListConfigParameters { show_schema } = self.operation {
+        //     print_config_parameters(entry_point_definition, show_schema);
 
-            let dtls_config = UdpDtlsConfig {
-                config,
-                dest_addr: ("192.168.178.45", 5684)
-                    .to_socket_addrs()
-                    .unwrap()
-                    .next()
-                    .unwrap(),
-            };
+        //     return Ok(());
+        // }
 
-            let client = CoAPClient::from_udp_dtls_config(dtls_config)
-                .await
-                .expect("could not create client");
-            let domain = "192.168.178.45:5684";
+        // let affordance_pointer = self
+        //     .affordance_pointer
+        //     .parse::<JsonPointer<_, _>>()
+        //     .unwrap();
 
-            let request = RequestBuilder::new("/.well-known/sdf/instance", Method::Get)
-                .domain(domain.to_string())
-                .build();
+        // let interaction_affordance = affordance_pointer
+        //     .get(&sdf_model)
+        //     // TODO: Use correct error here
+        //     .map_err(|_x| SdfConsumerError {
+        //         error_message: "Failed to resolved JSON Pointer".to_string(),
+        //     })?
+        //     .as_object()
+        //     .context("context")?;
 
-            let response = client.send(request).await.unwrap();
-            let payload_string = String::from_utf8(response.message.payload).unwrap();
+        // let mut result: Option<Value> = None;
+        // for protocol in protocol_order {
+        //     if result.is_some() {
+        //         break;
+        //     }
 
-            let sdf_instance = serde_json::from_str(&payload_string)?;
+        //     match protocol {
+        //         SupportedProtocols::Coap => {
+        //             result = protocol_mappings::coap::handle_interaction(
+        //                 &cli.instance_url,
+        //                 interaction_affordance,
+        //                 &sdf_model,
+        //                 &sdf_message,
+        //                 &cli.operation,
+        //             )
+        //             .await?;
+        //         }
+        //         SupportedProtocols::Http => {
+        //             result = protocol_mappings::http::handle_interaction(
+        //                 &cli.instance_url,
+        //                 interaction_affordance,
+        //                 &sdf_model,
+        //                 &sdf_message,
+        //                 &cli.operation,
+        //             )
+        //             .await?;
+        //         }
+        //     }
+        // }
 
-            println!("{sdf_instance}");
-
-            return Ok(sdf_instance);
-        } else if instance_url.starts_with("coap") {
-            let response = UdpCoAPClient::get(instance_url).await.unwrap();
-            let payload_string = String::from_utf8(response.message.payload).unwrap();
-
-            let sdf_instance = serde_json::from_str(&payload_string)?;
-
-            return Ok(sdf_instance);
-        }
-
-        Err(SdfConsumerError {
-            error_message: "Unsupported URI scheme!".to_string(),
-        }
-        .into())
+        Ok(())
     }
 }

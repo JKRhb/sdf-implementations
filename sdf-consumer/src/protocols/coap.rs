@@ -1,3 +1,11 @@
+// Copyright 2026 Jan Romann
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT.
+//
+// SPDX-License-Identifier: MIT
+
 use std::{collections::HashMap, fs};
 
 use anyhow::{Context, bail};
@@ -8,13 +16,45 @@ use sdf_data_structures::instance::{
 use serde_json::{Map, Value, json};
 use uuid::Uuid;
 
-use crate::{
-    SdfConsumerError,
-    protocol_mappings::{
-        Operation,
-        common::{determine_url, obtain_method, obtain_operation},
-    },
-};
+use crate::error::SdfConsumerError;
+use crate::operation::Operation;
+use crate::protocols::common;
+use crate::protocols::common::{determine_url, obtain_method, obtain_operation};
+
+pub(crate) struct CoapProtocolMapping {}
+
+impl CoapProtocolMapping {
+    async fn perform_read_operation(
+        protocol_map: &Map<String, Value>,
+        sdf_model: &Value,
+        sdf_instance: &Value,
+    ) -> anyhow::Result<Option<Value>> {
+        let read_operation = obtain_operation(protocol_map, "read".to_string())?;
+
+        let url = determine_url(
+            read_operation,
+            protocol_map,
+            sdf_instance,
+            sdf_model,
+            "coap",
+        )?;
+
+        let method = common::obtain_method(read_operation, "GET");
+
+        match method.as_str() {
+            "GET" => {
+                let response = UdpCoAPClient::get(&url).await?;
+
+                let payload_string = String::from_utf8(response.message.payload)?;
+
+                let value = serde_json::to_value(payload_string)?;
+
+                Ok(Some(value))
+            }
+            _ => Ok(None),
+        }
+    }
+}
 
 pub async fn handle_interaction(
     instance_url: &String,
