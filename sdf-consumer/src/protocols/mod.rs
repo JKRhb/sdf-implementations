@@ -17,7 +17,7 @@ use serde_json::Value;
 use crate::{
     error::SdfConsumerError,
     protocols::{
-        coap::CoapProtocolMapping, coaps::CoapsProtocolMapping, http::HttpProtocolMapping,
+        coap::CoapImplementation, coaps::CoapsImplementation, http::HttpImplementation,
     },
 };
 
@@ -34,19 +34,19 @@ pub(crate) enum SupportedProtocols {
     Https,
 }
 
-pub(crate) enum ProtocolMapping {
-    CoapProtocolMapping(CoapProtocolMapping),
-    CoapsProtocolMapping(CoapsProtocolMapping),
-    HttpProtocolMapping(HttpProtocolMapping),
+pub(crate) enum ProtocolImplementation {
+    Coap(CoapImplementation),
+    Coaps(CoapsImplementation),
+    Http(HttpImplementation),
 }
 
-impl ProtocolMapping {
+impl ProtocolImplementation {
     pub(crate) fn try_new(
         interaction_affordance: SdfAffordance,
         sdf_grouping: SdfGrouping,
         preferred_protocol: Option<SupportedProtocols>,
     ) -> anyhow::Result<Self> {
-        Ok(ProtocolMapping::HttpProtocolMapping(HttpProtocolMapping {}))
+        Ok(ProtocolImplementation::Http(HttpImplementation {}))
         // let blah = Blah {
         //     interaction_affordance,
         //     sdf_grouping,
@@ -55,16 +55,16 @@ impl ProtocolMapping {
     }
 }
 
-impl TryFrom<Url> for ProtocolMapping {
+impl TryFrom<Url> for ProtocolImplementation {
     type Error = SdfConsumerError;
 
     fn try_from(value: Url) -> Result<Self, Self::Error> {
         match value.scheme() {
-            "coap" => Ok(ProtocolMapping::CoapProtocolMapping(CoapProtocolMapping {})),
-            "coaps" => Ok(ProtocolMapping::CoapsProtocolMapping(
-                CoapsProtocolMapping {},
+            "coap" => Ok(ProtocolImplementation::Coap(CoapImplementation {})),
+            "coaps" => Ok(ProtocolImplementation::Coaps(
+                CoapsImplementation {},
             )),
-            "http" | "https" => Ok(ProtocolMapping::HttpProtocolMapping(HttpProtocolMapping {})),
+            "http" | "https" => Ok(ProtocolImplementation::Http(HttpImplementation {})),
             _ => Err(SdfConsumerError {
                 error_message: "hi".to_string(),
             }),
@@ -73,16 +73,16 @@ impl TryFrom<Url> for ProtocolMapping {
 }
 
 // TODO: Maybe needs better name
-impl ProtocolMapping {
+impl ProtocolImplementation {
     fn supported_uri_schemes() -> Vec<String> {
         todo!()
     }
 
     pub(crate) async fn obtain_sdf_snapshot(self, instance_url: Url) -> anyhow::Result<SdfMessage> {
         match self {
-            ProtocolMapping::CoapProtocolMapping(coap_protocol_mapping) => todo!(),
-            ProtocolMapping::CoapsProtocolMapping(coaps_protocol_mapping) => todo!(),
-            ProtocolMapping::HttpProtocolMapping(http_protocol_mapping) => {
+            ProtocolImplementation::Coap(coap_protocol_mapping) => todo!(),
+            ProtocolImplementation::Coaps(coaps_protocol_mapping) => todo!(),
+            ProtocolImplementation::Http(http_protocol_mapping) => {
                 http_protocol_mapping
                     .obtain_sdf_instance(instance_url)
                     .await
@@ -98,11 +98,11 @@ impl ProtocolMapping {
         // sdf_instance: &Value,
     ) -> anyhow::Result<Option<Value>> {
         match self {
-            ProtocolMapping::HttpProtocolMapping(http_protocol_mapping) => {
+            ProtocolImplementation::Http(http_protocol_mapping) => {
                 http_protocol_mapping.perform_read_operation(url).await
             }
-            ProtocolMapping::CoapProtocolMapping(coap_protocol_mapping) => todo!(),
-            ProtocolMapping::CoapsProtocolMapping(coaps_protocol_mapping) => todo!(),
+            ProtocolImplementation::Coap(coap_protocol_mapping) => todo!(),
+            ProtocolImplementation::Coaps(coaps_protocol_mapping) => todo!(),
         }
     }
 }

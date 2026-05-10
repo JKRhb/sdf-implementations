@@ -17,13 +17,13 @@ use serde_json::{Map, Value, json};
 use uuid::Uuid;
 
 use crate::error::SdfConsumerError;
-use crate::operation::Operation;
+use crate::operation::{AffordanceOperation, Operation};
 use crate::protocols::common;
 use crate::protocols::common::{determine_url, obtain_method, obtain_operation};
 
-pub(crate) struct CoapProtocolMapping {}
+pub(crate) struct CoapImplementation {}
 
-impl CoapProtocolMapping {
+impl CoapImplementation {
     async fn perform_read_operation(
         protocol_map: &Map<String, Value>,
         sdf_model: &Value,
@@ -61,7 +61,7 @@ pub async fn handle_interaction(
     interaction_affordance: &Map<String, Value>,
     sdf_model: &Value,
     sdf_instance: &Value,
-    operation: &Operation,
+    operation: &AffordanceOperation,
 ) -> anyhow::Result<Option<Value>> {
     let protocol_map = interaction_affordance
         .get("sdfProtocolMap")
@@ -69,10 +69,10 @@ pub async fn handle_interaction(
 
     if let Some(protocol_map) = protocol_map.get("coap").and_then(|x| x.as_object()) {
         match operation {
-            Operation::Read { observe: _ } => {
+            AffordanceOperation::Read { observe: _, property_pointer: _ } => {
                 return perform_read_operation(protocol_map, sdf_model, sdf_instance).await;
             }
-            Operation::Write { input } => {
+            AffordanceOperation::Write { property_pointer: _, input } => {
                 if let Some(input) = input {
                     return perform_write_operation(protocol_map, sdf_model, sdf_instance, input)
                         .await;
@@ -82,7 +82,7 @@ pub async fn handle_interaction(
                     error_message: "Missing input data for write operation".to_string()
                 });
             }
-            Operation::Configure { input_file_name } => {
+            AffordanceOperation::Configure { input_file_name } => {
                 perform_configuration(
                     instance_url,
                     input_file_name,

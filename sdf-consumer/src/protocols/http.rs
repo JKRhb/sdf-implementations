@@ -14,9 +14,9 @@ use crate::protocols::{
     common::{determine_url, obtain_method, obtain_operation},
 };
 
-pub(crate) struct HttpProtocolMapping {}
+pub(crate) struct HttpImplementation {}
 
-impl HttpProtocolMapping {
+impl HttpImplementation {
     pub(crate) async fn obtain_sdf_instance(self, instance_url: Url) -> anyhow::Result<SdfMessage> {
         let sdf_instance = reqwest::get(instance_url)
             .await?

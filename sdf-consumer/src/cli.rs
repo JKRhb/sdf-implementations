@@ -31,12 +31,6 @@ pub(crate) struct Cli {
     /// URL pointing to a resource retrieving instance-related messages.
     pub(crate) instance_url: Url,
 
-    /// JSON Pointer to the affordance that is to be used.
-    ///
-    /// The JSON Pointer must match the path within the SDF model, not the
-    /// instance.
-    pub(crate) affordance_pointer: String,
-
     /// Preferred protocol map for interactions.
     ///
     /// If unset, coap will be used by default if present in the resolved
@@ -50,7 +44,6 @@ impl Cli {
             .handle_operation(
                 self.instance_url,
                 self.preferred_protocol,
-                self.affordance_pointer,
             )
             .await?;
 

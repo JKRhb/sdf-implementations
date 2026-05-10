@@ -14,27 +14,12 @@ use reqwest::Url;
 use sdf_data_structures::{model::SdfModel, traits::SdfGrouping};
 use serde_json::Value;
 
-use crate::protocols::{ProtocolMapping, SupportedProtocols};
+use crate::protocols::{ProtocolImplementation, SupportedProtocols};
 
 #[derive(Subcommand)]
 pub(crate) enum Operation {
-    /// Reads a property from an SDF Thing
-    Read {
-        #[clap(long, short)]
-        observe: bool,
-    },
-
-    /// Writes the property of an SDF Thing
-    Write { input: Option<Value> },
-
-    /// Invokes an action of an SDF Thing.
-    Invoke,
-
-    /// Subscribes to an event of an SDF Thing.
-    Subscribe,
-
-    /// Reconfigures a Thing
-    Configure { input_file_name: String },
+    #[clap(flatten)]
+    AffordanceOperation(AffordanceOperation),
 
     ListConfigParameters {
         #[clap(long, short)]
@@ -42,14 +27,38 @@ pub(crate) enum Operation {
     },
 }
 
+#[derive(Subcommand)]
+pub(crate) enum AffordanceOperation {
+    /// Reads a property from an SDF Thing
+    Read {
+        #[clap(long, short)]
+        observe: bool,
+        property_pointer: String,
+    },
+
+    /// Writes the property of an SDF Thing
+    Write {
+        property_pointer: String,
+        input: Option<Value>,
+    },
+
+    /// Invokes an action of an SDF Thing.
+    Invoke { action_pointer: String },
+
+    /// Subscribes to an event of an SDF Thing.
+    Subscribe { event_pointer: String },
+
+    /// Reconfigures a Thing
+    Configure { input_file_name: String },
+}
+
 impl Operation {
     pub(crate) async fn handle_operation(
         self,
         instance_url: Url,
         preferred_protocol: Option<SupportedProtocols>,
-        affordance_pointer: String,
     ) -> anyhow::Result<()> {
-        let protocol_mapping: ProtocolMapping = instance_url.clone().try_into()?;
+        let protocol_mapping: ProtocolImplementation = instance_url.clone().try_into()?;
 
         let sdf_snapshot = protocol_mapping.obtain_sdf_snapshot(instance_url).await?;
 
@@ -60,40 +69,54 @@ impl Operation {
         // TODO: Handle pointer prefix
         let sdf_grouping = sdf_model.resolve_entry_point_from_sdf_message(sdf_snapshot)?;
 
-        let interaction_affordance = sdf_grouping
-            .clone()
-            .resolve_affordance_pointer(affordance_pointer)?
-            .context("Could not resolve affordance JSON Pointer against SDF model.")?;
-
-        let protocol_mapping = ProtocolMapping::try_new(
-            interaction_affordance,
-            sdf_grouping.clone(),
-            preferred_protocol,
-        )?;
-
-        let mut result: Option<Value> = None;
-
         match self {
-            Operation::Read { observe } => {
-                result = protocol_mapping
-                    .perform_read_operation("TODO".to_string())
-                    .await?;
-            }
-            Operation::Write { input } => todo!(),
-            Operation::Invoke => todo!(),
-            Operation::Subscribe => todo!(),
-            Operation::Configure { input_file_name } => todo!(),
             Operation::ListConfigParameters { show_schema } => {
                 Self::list_config_parameters(sdf_grouping, show_schema);
                 return Ok(());
             }
-        }
+            Operation::AffordanceOperation(affordance_operation) => {
+                let interaction_affordance = sdf_grouping
+                    .clone()
+                    // .resolve_affordance_pointer(affordance_pointer)?
+                    .resolve_affordance_pointer("affordance_pointer".to_string())?
+                    .context("Could not resolve affordance JSON Pointer against SDF model.")?;
 
-        if let Some(result) = result {
-            io::stdout().write_all(serde_json::to_string(&result).unwrap().as_bytes())?;
-        }
+                let protocol_mapping = ProtocolImplementation::try_new(
+                    interaction_affordance,
+                    sdf_grouping.clone(),
+                    preferred_protocol,
+                )?;
 
-        Ok(())
+                // TODO
+                let affordance_url = "http://example.org".to_string();
+
+                let mut result: Option<Value> = None;
+
+                match affordance_operation {
+                    AffordanceOperation::Read {
+                        observe,
+                        property_pointer,
+                    } => {
+                        result = protocol_mapping
+                            .perform_read_operation(affordance_url)
+                            .await?;
+                    }
+                    AffordanceOperation::Write {
+                        input,
+                        property_pointer,
+                    } => todo!(),
+                    AffordanceOperation::Invoke { action_pointer } => todo!(),
+                    AffordanceOperation::Subscribe { event_pointer } => todo!(),
+                    AffordanceOperation::Configure { input_file_name } => todo!(),
+                }
+
+                if let Some(result) = result {
+                    io::stdout().write_all(serde_json::to_string(&result).unwrap().as_bytes())?;
+                }
+
+                Ok(())
+            }
+        }
     }
 
     fn list_config_parameters(target_definition: SdfGrouping, show_schema: bool) {

@@ -6,4 +6,4 @@
 //
 // SPDX-License-Identifier: MIT
 
-pub(crate) struct CoapsProtocolMapping {}
+pub(crate) struct CoapsImplementation {}
