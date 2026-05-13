@@ -66,7 +66,10 @@ impl SdfGrouping {
         }
     }
 
-    pub fn resolve_affordance_pointer(self, affordance_pointer: String) -> anyhow::Result<Option<SdfAffordance>> {
+    pub fn resolve_affordance_pointer(
+        self,
+        affordance_pointer: String,
+    ) -> anyhow::Result<Option<SdfAffordance>> {
         todo!()
     }
 }

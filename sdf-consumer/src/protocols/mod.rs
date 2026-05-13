@@ -16,9 +16,7 @@ use serde_json::Value;
 
 use crate::{
     error::SdfConsumerError,
-    protocols::{
-        coap::CoapImplementation, coaps::CoapsImplementation, http::HttpImplementation,
-    },
+    protocols::{coap::CoapImplementation, coaps::CoapsImplementation, http::HttpImplementation},
 };
 
 pub(crate) mod coap;
@@ -61,9 +59,7 @@ impl TryFrom<Url> for ProtocolImplementation {
     fn try_from(value: Url) -> Result<Self, Self::Error> {
         match value.scheme() {
             "coap" => Ok(ProtocolImplementation::Coap(CoapImplementation {})),
-            "coaps" => Ok(ProtocolImplementation::Coaps(
-                CoapsImplementation {},
-            )),
+            "coaps" => Ok(ProtocolImplementation::Coaps(CoapsImplementation {})),
             "http" | "https" => Ok(ProtocolImplementation::Http(HttpImplementation {})),
             _ => Err(SdfConsumerError {
                 error_message: "hi".to_string(),
@@ -104,5 +100,9 @@ impl ProtocolImplementation {
             ProtocolImplementation::Coap(coap_protocol_mapping) => todo!(),
             ProtocolImplementation::Coaps(coaps_protocol_mapping) => todo!(),
         }
+    }
+
+    pub(crate) async fn perform_observe_operation(self) -> anyhow::Result<()> {
+        { Ok(()) }
     }
 }

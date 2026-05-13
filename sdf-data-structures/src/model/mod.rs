@@ -789,7 +789,9 @@ impl TryFrom<SdfAffordance> for SdfProperty {
     fn try_from(value: SdfAffordance) -> Result<Self, Self::Error> {
         match value {
             SdfAffordance::SdfProperty(sdf_property) => Ok(sdf_property),
-            _ => Err(SdfDataStructureError::TargetNamespaceError("Invalid conversion".to_string()))
+            _ => Err(SdfDataStructureError::TargetNamespaceError(
+                "Invalid conversion".to_string(),
+            )),
         }
     }
 }

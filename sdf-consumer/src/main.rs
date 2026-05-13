@@ -7,15 +7,13 @@
 // SPDX-License-Identifier: MIT
 
 mod cli;
-mod protocols;
-mod operation;
 pub(crate) mod error;
+mod operation;
+mod protocols;
 
 use clap::Parser;
 
-use crate::{
-    cli::Cli,
-};
+use crate::cli::Cli;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

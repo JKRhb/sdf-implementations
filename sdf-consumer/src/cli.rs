@@ -41,10 +41,7 @@ pub(crate) struct Cli {
 impl Cli {
     pub(crate) async fn handle_command(self) -> anyhow::Result<()> {
         self.operation
-            .handle_operation(
-                self.instance_url,
-                self.preferred_protocol,
-            )
+            .handle_operation(self.instance_url, self.preferred_protocol)
             .await?;
 
         // let sdf_message = self.obtain_sdf_message().await?;

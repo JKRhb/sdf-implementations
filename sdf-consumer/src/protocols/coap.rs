@@ -69,10 +69,16 @@ pub async fn handle_interaction(
 
     if let Some(protocol_map) = protocol_map.get("coap").and_then(|x| x.as_object()) {
         match operation {
-            AffordanceOperation::Read { observe: _, property_pointer: _ } => {
+            AffordanceOperation::Read {
+                observe: _,
+                property_pointer: _,
+            } => {
                 return perform_read_operation(protocol_map, sdf_model, sdf_instance).await;
             }
-            AffordanceOperation::Write { property_pointer: _, input } => {
+            AffordanceOperation::Write {
+                property_pointer: _,
+                input,
+            } => {
                 if let Some(input) = input {
                     return perform_write_operation(protocol_map, sdf_model, sdf_instance, input)
                         .await;

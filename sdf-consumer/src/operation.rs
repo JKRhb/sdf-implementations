@@ -97,9 +97,13 @@ impl Operation {
                         observe,
                         property_pointer,
                     } => {
-                        result = protocol_mapping
-                            .perform_read_operation(affordance_url)
-                            .await?;
+                        if observe {
+                            protocol_mapping.perform_observe_operation().await?;
+                        } else {
+                            result = protocol_mapping
+                                .perform_read_operation(affordance_url)
+                                .await?;
+                        }
                     }
                     AffordanceOperation::Write {
                         input,

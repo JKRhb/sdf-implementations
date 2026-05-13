@@ -10,9 +10,7 @@ use reqwest::Url;
 use sdf_data_structures::instance::SdfMessage;
 use serde_json::{Map, Value};
 
-use crate::protocols::{
-    common::{determine_url, obtain_method, obtain_operation},
-};
+use crate::protocols::common::{determine_url, obtain_method, obtain_operation};
 
 pub(crate) struct HttpImplementation {}
 
