@@ -99,7 +99,7 @@ impl ProtocolImplementation for CoapImplementation {
 }
 
 pub async fn handle_interaction(
-    instance_url: &String,
+    instance_url: &str,
     interaction_affordance: &Map<String, Value>,
     sdf_model: &Value,
     sdf_instance: &Value,
@@ -155,7 +155,7 @@ pub async fn handle_interaction(
 }
 
 async fn perform_configuration(
-    instance_url: &String,
+    instance_url: &str,
     input_file_name: &String,
     _protocol_map: &Map<String, Value>,
     _sdf_model: &Value,

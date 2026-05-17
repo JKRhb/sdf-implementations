@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, rc::Rc};
 
 use anyhow::{Context, bail};
 use reqwest::Url;
@@ -10,7 +10,7 @@ use sdf_data_structures::{
 use crate::protocols::ProtocolImplementation;
 
 pub struct SdfConsumer {
-    supported_protocols: HashMap<String, Arc<Box<dyn ProtocolImplementation>>>,
+    supported_protocols: HashMap<String, Rc<Box<dyn ProtocolImplementation>>>,
 }
 
 impl SdfConsumer {
@@ -36,11 +36,11 @@ impl SdfConsumer {
             }
         }
 
-        let foobar = Arc::new(protocol_implementation);
+        let foobar = Rc::new(protocol_implementation);
 
         for uri_scheme in &uri_schemes_to_register {
             self.supported_protocols
-                .insert(uri_scheme.clone(), Arc::clone(&foobar));
+                .insert(uri_scheme.clone(), foobar.clone());
         }
 
         Ok(())
@@ -49,7 +49,7 @@ impl SdfConsumer {
     fn determine_protocol_implementation(
         &self,
         scheme: String,
-    ) -> Option<Arc<Box<dyn ProtocolImplementation>>> {
+    ) -> Option<Rc<Box<dyn ProtocolImplementation>>> {
         self.supported_protocols.get(&scheme).cloned()
     }
 
@@ -75,11 +75,11 @@ impl SdfConsumer {
         // // TODO: Handle pointer prefix
         let sdf_grouping = sdf_model.resolve_entry_point_from_sdf_message(sdf_snapshot)?;
 
-        Ok(Arc::from(self).consume(sdf_grouping, pointer_prefix))
+        Ok(Rc::from(self).consume(sdf_grouping, pointer_prefix))
     }
 
     pub(crate) fn consume(
-        self: Arc<Self>,
+        self: Rc<Self>,
         sdf_grouping: SdfGrouping,
         pointer_prefix: String,
     ) -> ConsumedSdfGrouping {
@@ -108,7 +108,7 @@ impl SdfConsumer {
 pub(crate) struct ConsumedSdfGrouping {
     pointer_prefix: String,
     internal_data: SdfGrouping,
-    sdf_consumer: Arc<SdfConsumer>,
+    sdf_consumer: Rc<SdfConsumer>,
 }
 
 pub struct ConsumedSdfProperty {
