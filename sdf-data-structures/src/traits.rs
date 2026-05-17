@@ -70,15 +70,19 @@ impl SdfGrouping {
     // TODO: Replace with functions that create maps with JSON pointers and all affordances
     pub fn resolve_affordance_pointer(
         self,
-        affordance_pointer: String,
+        affordance_pointer: &str,
     ) -> anyhow::Result<Option<SdfAffordance>> {
-        let mut blah = affordance_pointer
+        let mut pointer_segments = affordance_pointer
             .trim_start_matches("#")
             .trim_start_matches("/")
             .split("/");
 
-        let first_element = blah.next().context("hi")?;
-        let second_element = blah.next().context("hi")?;
+        let first_element = pointer_segments
+            .next()
+            .context("Missing pointer segment for sdf quality name")?;
+        let second_element = pointer_segments
+            .next()
+            .context("Missing pointer segment for given quality name")?;
 
         let result;
 
@@ -86,21 +90,21 @@ impl SdfGrouping {
             "sdfProperty" => {
                 result = self
                     .sdf_property()
-                    .context("hey")?
+                    .context("Missing sdfProperty quality")?
                     .get(second_element)
                     .map(|x| SdfAffordance::SdfProperty(x.clone()))
             }
             "sdfAction" => {
                 result = self
                     .sdf_action()
-                    .context("hey")?
+                    .context("Missing sdfAction quality")?
                     .get(second_element)
                     .map(|x| SdfAffordance::SdfAction(x.clone()))
             }
             "sdfEvent" => {
                 result = self
                     .sdf_event()
-                    .context("hey")?
+                    .context("Missing sdfEvent quality")?
                     .get(second_element)
                     .map(|x| SdfAffordance::SdfEvent(x.clone()))
             }

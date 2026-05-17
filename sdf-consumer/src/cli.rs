@@ -128,12 +128,12 @@ impl Cli {
 
                         if observe {
                             consumed_sdf_grouping
-                                .observe_property(property_pointer, protocol_preference)
+                                .observe_property(property_pointer.as_str(), protocol_preference)
                                 .await?;
                         } else {
                             result = Some(
                                 consumed_sdf_grouping
-                                    .read_property(property_pointer, protocol_preference)
+                                    .read_property(property_pointer.as_str(), protocol_preference)
                                     .await?,
                             );
                         }

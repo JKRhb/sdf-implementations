@@ -116,16 +116,16 @@ pub struct ConsumedSdfProperty {
 }
 
 impl ConsumedSdfProperty {
-    pub(crate) fn supported_uri_schemes(self) -> Vec<String> {
+    pub(crate) fn supported_uri_schemes(self) -> Vec<&'static str> {
         let mut result = Vec::new();
 
         if let Some(sdf_protocol_map) = self.internal_data.sdf_protocol_map {
             if let Some(_coap_protocol_map) = sdf_protocol_map.coap {
-                result.push("coap".to_string());
+                result.push("coap");
             }
 
             if let Some(_http_protocol_map) = sdf_protocol_map.http {
-                result.push("http".to_string());
+                result.push("http");
             }
         }
 
@@ -138,7 +138,7 @@ impl ConsumedSdfGrouping {
         self.internal_data.sdf_context().unwrap_or_default()
     }
 
-    fn get_property(self, property_pointer: String) -> Option<ConsumedSdfProperty> {
+    fn get_property(self, property_pointer: &str) -> Option<ConsumedSdfProperty> {
         let affordance = self
             .internal_data
             .resolve_affordance_pointer(property_pointer)
@@ -154,33 +154,42 @@ impl ConsumedSdfGrouping {
 
     pub(crate) async fn read_property(
         self,
-        property_pointer: String,
+        property_pointer: &str,
         _protocol_preference: Vec<String>,
     ) -> anyhow::Result<serde_json::Value> {
         let sdf_consumer = self.sdf_consumer.clone();
-        let consumed_sdf_property = self.get_property(property_pointer).context("hey")?;
+        let consumed_sdf_property = self.get_property(property_pointer).context(format!(
+            "Error obtaining sdfProperty definition via pointer {}",
+            property_pointer
+        ))?;
 
         sdf_consumer.read_property(consumed_sdf_property).await
     }
 
     pub(crate) async fn observe_property(
         self,
-        property_pointer: String,
+        property_pointer: &str,
         _protocol_preference: Vec<String>,
     ) -> anyhow::Result<serde_json::Value> {
         let sdf_consumer = self.sdf_consumer.clone();
-        let consumed_sdf_property = self.get_property(property_pointer).context("hey")?;
+        let consumed_sdf_property = self.get_property(property_pointer).context(format!(
+            "Error obtaining sdfProperty definition via pointer {}",
+            property_pointer
+        ))?;
 
         sdf_consumer.read_property(consumed_sdf_property).await
     }
 
     pub(crate) async fn write_property(
         self,
-        property_pointer: String,
+        property_pointer: &str,
         _protocol_preference: Vec<String>,
     ) -> anyhow::Result<serde_json::Value> {
         let sdf_consumer = self.sdf_consumer.clone();
-        let consumed_sdf_property = self.get_property(property_pointer).context("hey")?;
+        let consumed_sdf_property = self.get_property(property_pointer).context(format!(
+            "Error obtaining sdfProperty definition via pointer {}",
+            property_pointer
+        ))?;
 
         sdf_consumer.read_property(consumed_sdf_property).await
     }
