@@ -6,7 +6,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::collections::HashSet;
+use std::{collections::HashSet, str::FromStr};
 
 use anyhow::{Context, bail};
 use async_trait::async_trait;
@@ -77,11 +77,15 @@ impl HttpProtocolMapping for ConsumedSdfProperty {
     }
 }
 
-pub(crate) struct HttpImplementation {}
+pub(crate) struct HttpImplementation {
+    client: reqwest::Client,
+}
 
 impl HttpImplementation {
     pub(crate) fn new() -> Self {
-        Self {}
+        Self {
+            client: reqwest::Client::new(),
+        }
     }
 }
 
@@ -103,18 +107,13 @@ impl ProtocolImplementation for HttpImplementation {
             .url()
             .context("Error constructing HTTP URI")?;
 
-        println!("{url}");
+        let method: reqwest::Method = consumed_sdf_property.method().as_str().try_into()?;
 
-        let method = consumed_sdf_property.method();
+        let request = self.client.request(method, url).build()?;
 
-        match method.as_str() {
-            "GET" => {
-                let result = reqwest::get(url).await?.json::<Value>().await?;
+        let result = self.client.execute(request).await?.json::<Value>().await?;
 
-                Ok(result)
-            }
-            _ => bail!("Unknown Method name"),
-        }
+        Ok(result)
     }
 
     async fn perform_observe_operation(
@@ -126,30 +125,24 @@ impl ProtocolImplementation for HttpImplementation {
 
     async fn perform_write_operation(
         &self,
-        _consumed_sdf_property: ConsumedSdfProperty,
+        consumed_sdf_property: ConsumedSdfProperty,
         _input_value: Value,
     ) -> anyhow::Result<()> {
-        let url = _consumed_sdf_property
+        let url = consumed_sdf_property
             .url()
             .context("Error constructing HTTP URI")?;
 
-        println!("{url}");
+        let method: reqwest::Method = consumed_sdf_property.method().as_str().try_into()?;
 
-        let method = _consumed_sdf_property.method();
+        let request = self
+            .client
+            .request(method, url)
+            .body(serde_json::to_string(&_input_value)?)
+            .build()?;
 
-        match method.as_str() {
-            "PUT" => {
-                reqwest::Client::new()
-                    .put(url)
-                    .body(serde_json::to_string(&_input_value)?)
-                    .send()
-                    .await?;
+        self.client.execute(request).await?.error_for_status()?;
 
-                Ok(())
-            }
-            // TODO: Handle other methods as well
-            _ => Ok(()),
-        }
+        Ok(())
     }
 
     async fn obtain_sdf_snapshot(&self, instance_url: Url) -> anyhow::Result<SdfMessage> {

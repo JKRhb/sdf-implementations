@@ -30,7 +30,7 @@ impl TryFrom<Url> for Box<dyn ProtocolImplementation> {
         match value.scheme() {
             "coap" => Ok(Box::from(CoapImplementation {})),
             "coaps" => Ok(Box::from(CoapsImplementation {})),
-            "http" | "https" => Ok(Box::from(HttpImplementation {})),
+            "http" | "https" => Ok(Box::from(HttpImplementation::new())),
             _ => Err(SdfConsumerError {
                 error_message: "hi".to_string(),
             }),
