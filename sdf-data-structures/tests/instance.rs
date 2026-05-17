@@ -57,8 +57,8 @@ fn test_sdf_object_definition() {
         .build()
         .unwrap();
 
-    let sdf_model = SdfModelBuilder::default()
-        .sdf_object(HashMap::from_iter(vec![("bar".into(), sdf_object.clone())]))
+    SdfModelBuilder::default()
+        .sdf_object(HashMap::from([("bar".into(), sdf_object.clone())]))
         .build()
         .unwrap();
 }
