@@ -110,7 +110,7 @@ impl SdfConsumer {
         let compatible_uri_schemes: Vec<&str> = consumed_sdf_property
             .supported_uri_schemes()
             .into_iter()
-            .filter(|x| self.supported_protocols.contains_key(&x.to_string()))
+            .filter(|x| self.supported_protocols.contains_key(*x))
             .collect();
 
         let scheme;
