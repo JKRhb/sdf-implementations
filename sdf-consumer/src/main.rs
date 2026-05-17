@@ -9,14 +9,11 @@
 mod cli;
 pub(crate) mod consumer;
 pub(crate) mod error;
-mod operation;
 mod protocols;
 
 use clap::Parser;
 
-use crate::cli::Cli;
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    Cli::parse().handle_command().await
+    cli::Cli::parse().handle_operation().await
 }

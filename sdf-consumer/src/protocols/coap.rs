@@ -19,9 +19,9 @@ use sdf_data_structures::instance::{
 use serde_json::{Map, Value, json};
 use uuid::Uuid;
 
+use crate::cli::{AffordanceOperation, Cli};
 use crate::consumer::ConsumedSdfProperty;
 use crate::error::SdfConsumerError;
-use crate::operation::{AffordanceOperation, Operation};
 use crate::protocols::common::{determine_url, obtain_method, obtain_operation};
 use crate::protocols::{ProtocolImplementation, common};
 
