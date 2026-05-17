@@ -1,3 +1,11 @@
+// Copyright 2026 Jan Romann
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT.
+//
+// SPDX-License-Identifier: MIT
+
 use std::{collections::HashMap, error::Error, fmt::Display};
 
 use derive_builder::Builder;

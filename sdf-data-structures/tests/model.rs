@@ -1,3 +1,11 @@
+// Copyright 2026 Jan Romann
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT.
+//
+// SPDX-License-Identifier: MIT
+
 use sdf_data_structures::model::SchemaDefinition;
 
 /// This tests the deserialization of the simple SDF example document contained
