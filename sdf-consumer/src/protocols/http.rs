@@ -6,9 +6,9 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::{collections::HashSet, str::FromStr};
+use std::{collections::HashSet};
 
-use anyhow::{Context, bail};
+use anyhow::{Context};
 use async_trait::async_trait;
 use reqwest::Url;
 use sdf_data_structures::{
