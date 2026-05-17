@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
 use anyhow::{Context, bail};
-use serde::{Deserialize, de::DeserializeOwned};
 
 use crate::{
     error::SdfDataStructureError,
@@ -55,14 +54,14 @@ impl SdfGrouping {
 
     pub fn sdf_thing(self) -> Option<HashMap<String, SdfThing>> {
         match self {
-            SdfGrouping::SdfObject(sdf_object) => None,
+            SdfGrouping::SdfObject(_sdf_object) => None,
             SdfGrouping::SdfThing(sdf_thing) => sdf_thing.sdf_thing,
         }
     }
 
     pub fn sdf_object(self) -> Option<HashMap<String, SdfObject>> {
         match self {
-            SdfGrouping::SdfObject(sdf_object) => None,
+            SdfGrouping::SdfObject(_sdf_object) => None,
             SdfGrouping::SdfThing(sdf_thing) => sdf_thing.sdf_object,
         }
     }

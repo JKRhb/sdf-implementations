@@ -1,6 +1,5 @@
 use std::{collections::HashMap, error::Error, fmt::Display};
 
-use anyhow::Context;
 use derive_builder::Builder;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -125,13 +124,7 @@ impl SdfMessage {
 
         let query = blah
             .iter()
-            .filter_map(|(value, key)| {
-                if let Some(value) = value {
-                    Some((value, key))
-                } else {
-                    None
-                }
-            })
+            .filter_map(|(value, key)| value.as_ref().map(|value| (value, key)))
             .map(|(value, key)| format!("{key}={}", value))
             .join("&");
 

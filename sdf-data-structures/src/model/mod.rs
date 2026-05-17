@@ -12,9 +12,14 @@ use serde_json::{Map, Value};
 use serde_with::skip_serializing_none;
 
 use crate::{
-    error::SdfDataStructureError, instance::SdfMessage, model::protocol_mappings::{coap::PropertyCoapProtocolMap, http::PropertyHttpProtocolMap}, supplement::SdfSupplement, traits::{
+    error::SdfDataStructureError,
+    instance::SdfMessage,
+    model::protocol_mappings::{coap::PropertyCoapProtocolMap, http::PropertyHttpProtocolMap},
+    supplement::SdfSupplement,
+    traits::{
         GlobalNameAggregator, GlobalNameContributor, SdfAffordance, SdfDataStructure, SdfGrouping,
-    }, util::{default_bool_true, none_extra, skip_bool_true}
+    },
+    util::{default_bool_true, none_extra, skip_bool_true},
 };
 
 #[cfg(feature = "utoipa")]
