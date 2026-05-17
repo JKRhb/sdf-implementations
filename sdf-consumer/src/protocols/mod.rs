@@ -21,7 +21,6 @@ use crate::{
 
 pub(crate) mod coap;
 pub(crate) mod coaps;
-pub(super) mod common;
 pub(crate) mod http;
 
 impl TryFrom<Url> for Box<dyn ProtocolImplementation> {
