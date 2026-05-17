@@ -6,7 +6,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 
 use anyhow::bail;
 use clap::{Args, Parser, Subcommand};
@@ -169,6 +169,10 @@ impl Cli {
 
                 if let Some(result) = result {
                     io::stdout().write_all(serde_json::to_string(&result).unwrap().as_bytes())?;
+
+                    if std::io::stdout().is_terminal() {
+                        println!();
+                    }
                 }
 
                 Ok(())
