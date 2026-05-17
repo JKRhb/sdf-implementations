@@ -102,13 +102,41 @@ impl SdfConsumer {
         }
     }
 
+    fn determine_uri_scheme(
+        &self,
+        consumed_sdf_property: &ConsumedSdfProperty,
+        protocol_preference: Option<Vec<String>>,
+    ) -> anyhow::Result<String> {
+        let compatible_uri_schemes: Vec<&str> = consumed_sdf_property
+            .supported_uri_schemes()
+            .into_iter()
+            .filter(|x| self.supported_protocols.contains_key(&x.to_string()))
+            .collect();
+
+        let scheme;
+
+        if let Some(protocol_preference) = protocol_preference {
+            scheme = protocol_preference
+                .into_iter().find(|x| compatible_uri_schemes.contains(&x.as_str()))
+                .context("None of the preferred URI schemes are compatible with the URI schemes supported by the SDF Thing.")?;
+        } else {
+            scheme = compatible_uri_schemes.first()
+                .context("No available URI schemes are compatible with the URI schemes supported by the SDF Thing.")?
+                .to_string();
+        }
+
+        Ok(scheme)
+    }
+
     async fn read_property(
         &self,
         consumed_sdf_property: ConsumedSdfProperty,
+        protocol_preference: Option<Vec<String>>,
     ) -> anyhow::Result<serde_json::Value> {
-        let scheme = "http";
+        let scheme = self.determine_uri_scheme(&consumed_sdf_property, protocol_preference)?;
+
         let protocol_implementation =
-            self.determine_protocol_implementation(scheme)
+            self.determine_protocol_implementation(&scheme)
                 .context(format!(
                     "Could not obtain a protocol implementation for URI scheme {}",
                     scheme
@@ -122,10 +150,12 @@ impl SdfConsumer {
     async fn observe_property(
         &self,
         consumed_sdf_property: ConsumedSdfProperty,
+        protocol_preference: Option<Vec<String>>,
     ) -> anyhow::Result<()> {
-        let scheme = "http";
+        let scheme = self.determine_uri_scheme(&consumed_sdf_property, protocol_preference)?;
+
         let protocol_implementation =
-            self.determine_protocol_implementation(scheme)
+            self.determine_protocol_implementation(&scheme)
                 .context(format!(
                     "Could not obtain a protocol implementation for URI scheme {}",
                     scheme
@@ -139,11 +169,13 @@ impl SdfConsumer {
     async fn write_property(
         &self,
         consumed_sdf_property: ConsumedSdfProperty,
+        protocol_preference: Option<Vec<String>>,
         input_value: serde_json::Value,
     ) -> anyhow::Result<()> {
-        let scheme = "http";
+        let scheme = self.determine_uri_scheme(&consumed_sdf_property, protocol_preference)?;
+
         let protocol_implementation =
-            self.determine_protocol_implementation(scheme)
+            self.determine_protocol_implementation(&scheme)
                 .context(format!(
                     "Could not obtain a protocol implementation for URI scheme {}",
                     scheme
@@ -166,15 +198,15 @@ pub struct ConsumedSdfProperty {
 }
 
 impl ConsumedSdfProperty {
-    pub(crate) fn supported_uri_schemes(self) -> Vec<&'static str> {
+    pub(crate) fn supported_uri_schemes(&self) -> Vec<&'static str> {
         let mut result = Vec::new();
 
-        if let Some(sdf_protocol_map) = self.internal_data.sdf_protocol_map {
-            if let Some(_coap_protocol_map) = sdf_protocol_map.coap {
+        if let Some(sdf_protocol_map) = &self.internal_data.sdf_protocol_map {
+            if let Some(_coap_protocol_map) = &sdf_protocol_map.coap {
                 result.push("coap");
             }
 
-            if let Some(_http_protocol_map) = sdf_protocol_map.http {
+            if let Some(_http_protocol_map) = &sdf_protocol_map.http {
                 result.push("http");
             }
         }
@@ -208,36 +240,40 @@ impl ConsumedSdfGrouping {
     pub(crate) async fn read_property(
         self,
         property_pointer: &str,
-        _protocol_preference: Vec<String>,
+        protocol_preference: Option<Vec<String>>,
     ) -> anyhow::Result<serde_json::Value> {
         let sdf_consumer = self.sdf_consumer.clone();
         let consumed_sdf_property = self.get_property(property_pointer)?;
 
-        sdf_consumer.read_property(consumed_sdf_property).await
+        sdf_consumer
+            .read_property(consumed_sdf_property, protocol_preference)
+            .await
     }
 
     pub(crate) async fn observe_property(
         self,
         property_pointer: &str,
-        _protocol_preference: Vec<String>,
+        protocol_preference: Option<Vec<String>>,
     ) -> anyhow::Result<()> {
         let sdf_consumer = self.sdf_consumer.clone();
         let consumed_sdf_property = self.get_property(property_pointer)?;
 
-        sdf_consumer.observe_property(consumed_sdf_property).await
+        sdf_consumer
+            .observe_property(consumed_sdf_property, protocol_preference)
+            .await
     }
 
     pub(crate) async fn write_property(
         self,
         property_pointer: &str,
         input_value: serde_json::Value,
-        _protocol_preference: Vec<String>,
+        protocol_preference: Option<Vec<String>>,
     ) -> anyhow::Result<()> {
         let sdf_consumer = self.sdf_consumer.clone();
         let consumed_sdf_property = self.get_property(property_pointer)?;
 
         sdf_consumer
-            .write_property(consumed_sdf_property, input_value)
+            .write_property(consumed_sdf_property, protocol_preference, input_value)
             .await
     }
 }

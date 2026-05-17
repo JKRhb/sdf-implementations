@@ -45,7 +45,7 @@ pub(crate) struct CommonAffordanceArguments {
     /// If unset, coap will be used by default if present in the resolved
     /// model.
     #[arg(short, long, value_delimiter = ',', num_args = 1..)]
-    preferred_protocol: Vec<String>,
+    preferred_protocol: Option<Vec<String>>,
 }
 
 #[derive(Subcommand)]
