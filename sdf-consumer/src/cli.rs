@@ -68,7 +68,7 @@ pub(crate) enum AffordanceOperation {
 
         property_pointer: String,
 
-        input: Option<Value>,
+        input: Value,
     },
 
     /// Invokes an action of an SDF Thing.
@@ -139,10 +139,20 @@ impl Cli {
                         }
                     }
                     AffordanceOperation::Write {
-                        input: _,
-                        property_pointer: _,
-                        common_args: _,
-                    } => todo!(),
+                        input,
+                        property_pointer,
+                        common_args,
+                    } => {
+                        let protocol_preference = common_args.preferred_protocol;
+                        let instance_url = common_args.instance_url;
+
+                        let consumed_sdf_grouping =
+                            sdf_consumer.consume_from_url(instance_url).await?;
+
+                        consumed_sdf_grouping
+                            .write_property(property_pointer.as_str(), input, protocol_preference)
+                            .await?;
+                    }
                     AffordanceOperation::Invoke {
                         action_pointer: _,
                         common_args: _,

@@ -52,13 +52,13 @@ impl SdfConsumer {
 
     fn determine_protocol_implementation(
         &self,
-        scheme: String,
+        scheme: &str,
     ) -> Option<Rc<Box<dyn ProtocolImplementation>>> {
-        self.supported_protocols.get(&scheme).cloned()
+        self.supported_protocols.get(scheme).cloned()
     }
 
     pub async fn consume_from_url(self, instance_url: Url) -> anyhow::Result<ConsumedSdfGrouping> {
-        let scheme = instance_url.scheme().to_string();
+        let scheme = instance_url.scheme();
 
         let protocol_implementation = self
             .determine_protocol_implementation(scheme)
@@ -98,13 +98,51 @@ impl SdfConsumer {
         &self,
         consumed_sdf_property: ConsumedSdfProperty,
     ) -> anyhow::Result<serde_json::Value> {
-        let scheme = "http".to_string();
-        let protocol_implementation = self
-            .determine_protocol_implementation(scheme)
-            .context("hi")?;
+        let scheme = "http";
+        let protocol_implementation =
+            self.determine_protocol_implementation(scheme)
+                .context(format!(
+                    "Could not obtain a protocol implementation for URI scheme {}",
+                    scheme
+                ))?;
 
         protocol_implementation
             .perform_read_operation(consumed_sdf_property)
+            .await
+    }
+
+    async fn observe_property(
+        &self,
+        consumed_sdf_property: ConsumedSdfProperty,
+    ) -> anyhow::Result<()> {
+        let scheme = "http";
+        let protocol_implementation =
+            self.determine_protocol_implementation(scheme)
+                .context(format!(
+                    "Could not obtain a protocol implementation for URI scheme {}",
+                    scheme
+                ))?;
+
+        protocol_implementation
+            .perform_observe_operation(consumed_sdf_property)
+            .await
+    }
+
+    async fn write_property(
+        &self,
+        consumed_sdf_property: ConsumedSdfProperty,
+        input_value: serde_json::Value,
+    ) -> anyhow::Result<()> {
+        let scheme = "http";
+        let protocol_implementation =
+            self.determine_protocol_implementation(scheme)
+                .context(format!(
+                    "Could not obtain a protocol implementation for URI scheme {}",
+                    scheme
+                ))?;
+
+        protocol_implementation
+            .perform_write_operation(consumed_sdf_property, input_value)
             .await
     }
 }
@@ -174,21 +212,24 @@ impl ConsumedSdfGrouping {
         self,
         property_pointer: &str,
         _protocol_preference: Vec<String>,
-    ) -> anyhow::Result<serde_json::Value> {
-        let _sdf_consumer = self.sdf_consumer.clone();
-        let _consumed_sdf_property = self.get_property(property_pointer)?;
+    ) -> anyhow::Result<()> {
+        let sdf_consumer = self.sdf_consumer.clone();
+        let consumed_sdf_property = self.get_property(property_pointer)?;
 
-        todo!()
+        sdf_consumer.observe_property(consumed_sdf_property).await
     }
 
     pub(crate) async fn write_property(
         self,
         property_pointer: &str,
+        input_value: serde_json::Value,
         _protocol_preference: Vec<String>,
-    ) -> anyhow::Result<serde_json::Value> {
-        let _sdf_consumer = self.sdf_consumer.clone();
-        let _consumed_sdf_property = self.get_property(property_pointer)?;
+    ) -> anyhow::Result<()> {
+        let sdf_consumer = self.sdf_consumer.clone();
+        let consumed_sdf_property = self.get_property(property_pointer)?;
 
-        todo!()
+        sdf_consumer
+            .write_property(consumed_sdf_property, input_value)
+            .await
     }
 }
