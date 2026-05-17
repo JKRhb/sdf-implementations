@@ -1,6 +1,6 @@
 use std::{collections::HashMap, rc::Rc};
 
-use anyhow::{Context, bail};
+use anyhow::{Context, Ok, bail};
 use reqwest::Url;
 use sdf_data_structures::{
     model::{SdfContext, SdfModel, SdfProperty},
@@ -138,17 +138,20 @@ impl ConsumedSdfGrouping {
         self.internal_data.sdf_context().unwrap_or_default()
     }
 
-    fn get_property(self, property_pointer: &str) -> Option<ConsumedSdfProperty> {
+    fn get_property(self, property_pointer: &str) -> anyhow::Result<ConsumedSdfProperty> {
         let affordance = self
             .internal_data
-            .resolve_affordance_pointer(property_pointer)
-            .ok()??;
+            .resolve_affordance_pointer(property_pointer)?;
 
-        match affordance {
-            SdfAffordance::SdfProperty(sdf_property) => Some(ConsumedSdfProperty {
-                internal_data: sdf_property,
-            }),
-            _ => None,
+        if let Some(affordance) = affordance {
+            match affordance {
+                SdfAffordance::SdfProperty(sdf_property) => Ok(ConsumedSdfProperty {
+                    internal_data: sdf_property,
+                }),
+                _ => bail!("Wrong affordance type"),
+            }
+        } else {
+            bail!("JSON Pointer did not point to an actual affordance")
         }
     }
 
@@ -158,10 +161,7 @@ impl ConsumedSdfGrouping {
         _protocol_preference: Vec<String>,
     ) -> anyhow::Result<serde_json::Value> {
         let sdf_consumer = self.sdf_consumer.clone();
-        let consumed_sdf_property = self.get_property(property_pointer).context(format!(
-            "Error obtaining sdfProperty definition via pointer {}",
-            property_pointer
-        ))?;
+        let consumed_sdf_property = self.get_property(property_pointer)?;
 
         sdf_consumer.read_property(consumed_sdf_property).await
     }
@@ -172,12 +172,9 @@ impl ConsumedSdfGrouping {
         _protocol_preference: Vec<String>,
     ) -> anyhow::Result<serde_json::Value> {
         let sdf_consumer = self.sdf_consumer.clone();
-        let consumed_sdf_property = self.get_property(property_pointer).context(format!(
-            "Error obtaining sdfProperty definition via pointer {}",
-            property_pointer
-        ))?;
+        let consumed_sdf_property = self.get_property(property_pointer)?;
 
-        sdf_consumer.read_property(consumed_sdf_property).await
+        todo!()
     }
 
     pub(crate) async fn write_property(
@@ -186,11 +183,8 @@ impl ConsumedSdfGrouping {
         _protocol_preference: Vec<String>,
     ) -> anyhow::Result<serde_json::Value> {
         let sdf_consumer = self.sdf_consumer.clone();
-        let consumed_sdf_property = self.get_property(property_pointer).context(format!(
-            "Error obtaining sdfProperty definition via pointer {}",
-            property_pointer
-        ))?;
+        let consumed_sdf_property = self.get_property(property_pointer)?;
 
-        sdf_consumer.read_property(consumed_sdf_property).await
+        todo!()
     }
 }

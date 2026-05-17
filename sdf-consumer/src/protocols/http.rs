@@ -38,8 +38,6 @@ trait HttpProtocolMapping {
     fn method(&self) -> String;
 }
 
-trait HttpPropertyProtocolMapping {}
-
 impl HttpProtocolMapping for ConsumedSdfProperty {
     fn obtain_protocol_map(&self) -> Option<PropertyHttpProtocolMap> {
         self.internal_data.clone().sdf_protocol_map?.http
@@ -57,8 +55,9 @@ impl HttpProtocolMapping for ConsumedSdfProperty {
             .map(|x| format!("{x}:{port}"))
             .unwrap_or_default();
         let href = sdf_protocol_map.sdf_operations?.read.unwrap().href;
+        let href = href.trim_start_matches("/");
 
-        Some(format!("{scheme}{authority}/{href}"))
+        Some(format!("{scheme}:{authority}/{href}"))
     }
 
     fn method(&self) -> String {
@@ -76,7 +75,7 @@ impl HttpProtocolMapping for ConsumedSdfProperty {
     }
 
     fn authority(&self) -> Option<String> {
-        Some("example.org".to_string())
+        Some("httpbin.org".to_string())
     }
 
     fn port(&self) -> u16 {
@@ -100,7 +99,12 @@ impl ProtocolImplementation for HttpImplementation {
         &self,
         consumed_sdf_property: ConsumedSdfProperty,
     ) -> anyhow::Result<Value> {
-        let url = consumed_sdf_property.url().context("hey")?;
+        let url = consumed_sdf_property
+            .url()
+            .context("Error constructing HTTP URI")?;
+
+        println!("{url}");
+
         let method = consumed_sdf_property.method();
 
         match method.as_str() {
