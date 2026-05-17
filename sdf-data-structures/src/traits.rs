@@ -91,30 +91,22 @@ impl SdfGrouping {
             .next()
             .context("Missing pointer segment for given quality name")?;
 
-        let result;
-
-        match first_element {
-            "sdfProperty" => {
-                result = self
-                    .sdf_property()
-                    .context("Missing sdfProperty quality")?
-                    .get(second_element)
-                    .map(|x| SdfAffordance::SdfProperty(x.clone()))
-            }
-            "sdfAction" => {
-                result = self
-                    .sdf_action()
-                    .context("Missing sdfAction quality")?
-                    .get(second_element)
-                    .map(|x| SdfAffordance::SdfAction(x.clone()))
-            }
-            "sdfEvent" => {
-                result = self
-                    .sdf_event()
-                    .context("Missing sdfEvent quality")?
-                    .get(second_element)
-                    .map(|x| SdfAffordance::SdfEvent(x.clone()))
-            }
+        let result = match first_element {
+            "sdfProperty" => self
+                .sdf_property()
+                .context("Missing sdfProperty quality")?
+                .get(second_element)
+                .map(|x| SdfAffordance::SdfProperty(x.clone())),
+            "sdfAction" => self
+                .sdf_action()
+                .context("Missing sdfAction quality")?
+                .get(second_element)
+                .map(|x| SdfAffordance::SdfAction(x.clone())),
+            "sdfEvent" => self
+                .sdf_event()
+                .context("Missing sdfEvent quality")?
+                .get(second_element)
+                .map(|x| SdfAffordance::SdfEvent(x.clone())),
             // "sdfObject" => {
             //     self.sdf_object().context("hi")?.get(second_element).context("hey")?.
             // }

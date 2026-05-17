@@ -258,7 +258,7 @@ impl SdfModel {
         Ok(updated_model)
     }
 
-    fn check_for_backwards_compatibility(json_pointer: &String) -> bool {
+    fn check_for_backwards_compatibility(json_pointer: &str) -> bool {
         // TODO: Double-check whether this approach works
         let minor_change_keywords = vec![
             "#", // Top-level definitions
