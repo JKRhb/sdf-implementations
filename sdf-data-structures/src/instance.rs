@@ -152,8 +152,8 @@ impl SdfMessage {
         }
     }
 
-    pub fn get_entry_point(self) -> String {
-        self.sdf_instance_of.entry_point
+    pub fn get_entry_point(&self) -> String {
+        self.sdf_instance_of.entry_point.clone()
     }
 }
 

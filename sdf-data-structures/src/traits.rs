@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use anyhow::bail;
+use anyhow::{Context, bail};
 use serde::{Deserialize, de::DeserializeOwned};
 
 use crate::{
@@ -17,6 +17,7 @@ pub trait GlobalNameContributor {
     }
 }
 
+// TODO: Turn into trait
 #[derive(Clone, Debug)]
 pub enum SdfGrouping {
     SdfObject(SdfObject),
@@ -66,11 +67,50 @@ impl SdfGrouping {
         }
     }
 
+    // TODO: Replace with functions that create maps with JSON pointers and all affordances
     pub fn resolve_affordance_pointer(
         self,
         affordance_pointer: String,
     ) -> anyhow::Result<Option<SdfAffordance>> {
-        todo!()
+        let mut blah = affordance_pointer
+            .trim_start_matches("#")
+            .trim_start_matches("/")
+            .split("/");
+
+        let first_element = blah.next().context("hi")?;
+        let second_element = blah.next().context("hi")?;
+
+        let result;
+
+        match first_element {
+            "sdfProperty" => {
+                result = self
+                    .sdf_property()
+                    .context("hey")?
+                    .get(second_element)
+                    .map(|x| SdfAffordance::SdfProperty(x.clone()))
+            }
+            "sdfAction" => {
+                result = self
+                    .sdf_action()
+                    .context("hey")?
+                    .get(second_element)
+                    .map(|x| SdfAffordance::SdfAction(x.clone()))
+            }
+            "sdfEvent" => {
+                result = self
+                    .sdf_event()
+                    .context("hey")?
+                    .get(second_element)
+                    .map(|x| SdfAffordance::SdfEvent(x.clone()))
+            }
+            // "sdfObject" => {
+            //     self.sdf_object().context("hi")?.get(second_element).context("hey")?.
+            // }
+            _ => todo!(),
+        };
+
+        Ok(result)
     }
 }
 

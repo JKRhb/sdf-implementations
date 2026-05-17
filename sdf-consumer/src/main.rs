@@ -7,6 +7,7 @@
 // SPDX-License-Identifier: MIT
 
 mod cli;
+pub(crate) mod consumer;
 pub(crate) mod error;
 mod operation;
 mod protocols;

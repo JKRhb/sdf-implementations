@@ -12,13 +12,9 @@ use serde_json::{Map, Value};
 use serde_with::skip_serializing_none;
 
 use crate::{
-    error::SdfDataStructureError,
-    instance::SdfMessage,
-    supplement::SdfSupplement,
-    traits::{
+    error::SdfDataStructureError, instance::SdfMessage, model::protocol_mappings::{coap::PropertyCoapProtocolMap, http::PropertyHttpProtocolMap}, supplement::SdfSupplement, traits::{
         GlobalNameAggregator, GlobalNameContributor, SdfAffordance, SdfDataStructure, SdfGrouping,
-    },
-    util::{default_bool_true, none_extra, skip_bool_true},
+    }, util::{default_bool_true, none_extra, skip_bool_true}
 };
 
 #[cfg(feature = "utoipa")]
@@ -754,12 +750,13 @@ pub struct ObjectSchema {
     pub properties: Option<HashMap<String, SdfData>>,
 }
 
-// #[skip_serializing_none]
-// #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
-// pub struct PropertyProtocolMap {
-//     pub coap: Option<PropertyCoapProtocolMap>,
-//     pub http: Option<PropertyCoapProtocolMap>,
-// }
+#[skip_serializing_none]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
+#[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
+pub struct PropertyProtocolMap {
+    pub coap: Option<PropertyCoapProtocolMap>,
+    pub http: Option<PropertyHttpProtocolMap>,
+}
 
 #[skip_serializing_none]
 #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
@@ -780,7 +777,8 @@ pub struct SdfProperty {
     #[builder(setter(strip_option), default = "true")]
     #[serde(default = "default_bool_true", skip_serializing_if = "skip_bool_true")]
     pub observable: bool,
-    // pub sdf_protocol_map: Option<PropertyProtocolMap>,
+
+    pub sdf_protocol_map: Option<PropertyProtocolMap>,
 }
 
 impl TryFrom<SdfAffordance> for SdfProperty {

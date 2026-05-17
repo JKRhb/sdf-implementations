@@ -2,32 +2,52 @@ use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 
+#[cfg(feature = "utoipa")]
+use utoipa::ToSchema;
+
 #[skip_serializing_none]
 #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct CoapProtocolMap {
-    method: String,
+    method: Option<String>,
     href: String,
 }
 
-pub struct PropertyCoapProtocolMap {
+#[skip_serializing_none]
+#[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct PropertyCoapOperations {
+    #[serde(flatten)]
     protocol_map: CoapProtocolMap,
-    content_format: Vec<Option<u32>>,
-}
-
-pub struct ActionCoapProtocolMap {
-    protocol_map: CoapProtocolMap,
-    input_content_format: Vec<Option<u32>>,
-    output_content_format: Vec<Option<u32>>,
-}
-
-pub struct EventCoapProtocolMap {
-    protocol_map: CoapProtocolMap,
-    output_content_format: Vec<Option<u32>>,
+    content_format: Option<Vec<u32>>,
 }
 
 #[skip_serializing_none]
 #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct ActionCoapProtocolMap {
+    #[serde(flatten)]
+    protocol_map: CoapProtocolMap,
+    input_content_format: Option<Vec<u32>>,
+    output_content_format: Option<Vec<u32>>,
+}
+
+#[skip_serializing_none]
+#[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct EventCoapProtocolMap {
+    #[serde(flatten)]
+    protocol_map: CoapProtocolMap,
+    output_content_format: Option<Vec<u32>>,
+}
+
+#[skip_serializing_none]
+#[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct CoapProtocolMapParameters {
     host_names: Option<String>,
@@ -37,19 +57,18 @@ pub struct CoapProtocolMapParameters {
 
 #[skip_serializing_none]
 #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct CoapPropertyOperations {
-    read: Option<CoapProtocolMap>,
-    write: Option<CoapProtocolMap>,
+    read: Option<PropertyCoapOperations>,
+    write: Option<PropertyCoapOperations>,
 }
 
-enum CoapAffordances {}
-
-// #[skip_serializing_none]
-// #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
-// #[serde(rename_all = "camelCase")]
-// pub struct PropertyCoapProtocolMap {
-//     sdf_parameters: Option<CoapProtocolMapParameters>,
-
-//     sdf_operations: Option<CoapPropertyOperations>,
-// }
+#[skip_serializing_none]
+#[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct PropertyCoapProtocolMap {
+    sdf_parameters: Option<CoapProtocolMapParameters>,
+    sdf_operations: Option<CoapPropertyOperations>,
+}

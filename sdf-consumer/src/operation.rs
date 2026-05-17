@@ -8,13 +8,15 @@
 
 use std::io::{self, Write};
 
-use anyhow::Context;
-use clap::Subcommand;
+use anyhow::bail;
+use clap::{Args, Subcommand};
 use reqwest::Url;
-use sdf_data_structures::{model::SdfModel, traits::SdfGrouping};
 use serde_json::Value;
 
-use crate::protocols::{ProtocolImplementation, SupportedProtocols};
+use crate::{
+    consumer::{ConsumedSdfGrouping, SdfConsumer},
+    protocols::http::HttpImplementation,
+};
 
 #[derive(Subcommand)]
 pub(crate) enum Operation {
@@ -24,94 +26,132 @@ pub(crate) enum Operation {
     ListConfigParameters {
         #[clap(long, short)]
         show_schema: bool,
+
+        /// URL pointing to a resource hosting an SDF snapshot containing the configurable parameters.
+        instance_url: Url,
     },
+}
+
+#[derive(Args, Debug)]
+pub(crate) struct CommonAffordanceArguments {
+    /// URL pointing to a resource hosting an SDF snapshot.
+    instance_url: Url,
+
+    /// Preferred protocol map for interactions.
+    ///
+    /// If unset, coap will be used by default if present in the resolved
+    /// model.
+    #[arg(short, long, value_delimiter = ',', num_args = 1..)]
+    preferred_protocol: Vec<String>,
 }
 
 #[derive(Subcommand)]
 pub(crate) enum AffordanceOperation {
     /// Reads a property from an SDF Thing
     Read {
+        #[clap(flatten)]
+        common_args: CommonAffordanceArguments,
+
+        property_pointer: String,
+
         #[clap(long, short)]
         observe: bool,
-        property_pointer: String,
     },
 
     /// Writes the property of an SDF Thing
     Write {
+        #[clap(flatten)]
+        common_args: CommonAffordanceArguments,
+
         property_pointer: String,
+
         input: Option<Value>,
     },
 
     /// Invokes an action of an SDF Thing.
-    Invoke { action_pointer: String },
+    Invoke {
+        #[clap(flatten)]
+        common_args: CommonAffordanceArguments,
+
+        action_pointer: String,
+    },
 
     /// Subscribes to an event of an SDF Thing.
-    Subscribe { event_pointer: String },
+    Subscribe {
+        #[clap(flatten)]
+        common_args: CommonAffordanceArguments,
+
+        event_pointer: String,
+    },
 
     /// Reconfigures a Thing
-    Configure { input_file_name: String },
+    Configure {
+        #[clap(flatten)]
+        common_args: CommonAffordanceArguments,
+
+        input_file_name: String,
+    },
 }
 
 impl Operation {
-    pub(crate) async fn handle_operation(
-        self,
-        instance_url: Url,
-        preferred_protocol: Option<SupportedProtocols>,
-    ) -> anyhow::Result<()> {
-        let protocol_mapping: ProtocolImplementation = instance_url.clone().try_into()?;
+    pub(crate) async fn handle_operation(self) -> anyhow::Result<()> {
+        let mut sdf_consumer = SdfConsumer::new();
 
-        let sdf_snapshot = protocol_mapping.obtain_sdf_snapshot(instance_url).await?;
-
-        let model_url = sdf_snapshot.get_sdf_model_url()?.context("hi")?;
-
-        let sdf_model = reqwest::get(model_url).await?.json::<SdfModel>().await?;
-
-        // TODO: Handle pointer prefix
-        let sdf_grouping = sdf_model.resolve_entry_point_from_sdf_message(sdf_snapshot)?;
+        sdf_consumer.add_protocol_implementation(Box::from(HttpImplementation::new()))?;
 
         match self {
-            Operation::ListConfigParameters { show_schema } => {
-                Self::list_config_parameters(sdf_grouping, show_schema);
-                return Ok(());
+            Operation::ListConfigParameters {
+                show_schema,
+                instance_url,
+            } => {
+                let consumed_sdf_grouping = sdf_consumer.consume_from_url(instance_url).await?;
+
+                Self::list_config_parameters(consumed_sdf_grouping, show_schema)
             }
             Operation::AffordanceOperation(affordance_operation) => {
-                let interaction_affordance = sdf_grouping
-                    .clone()
-                    // .resolve_affordance_pointer(affordance_pointer)?
-                    .resolve_affordance_pointer("affordance_pointer".to_string())?
-                    .context("Could not resolve affordance JSON Pointer against SDF model.")?;
-
-                let protocol_mapping = ProtocolImplementation::try_new(
-                    interaction_affordance,
-                    sdf_grouping.clone(),
-                    preferred_protocol,
-                )?;
-
-                // TODO
-                let affordance_url = "http://example.org".to_string();
-
                 let mut result: Option<Value> = None;
 
                 match affordance_operation {
                     AffordanceOperation::Read {
-                        observe,
+                        common_args,
                         property_pointer,
+                        observe,
                     } => {
+                        let protocol_preference = common_args.preferred_protocol;
+                        let instance_url = common_args.instance_url;
+
+                        let consumed_sdf_grouping =
+                            sdf_consumer.consume_from_url(instance_url).await?;
+
                         if observe {
-                            protocol_mapping.perform_observe_operation().await?;
-                        } else {
-                            result = protocol_mapping
-                                .perform_read_operation(affordance_url)
+                            consumed_sdf_grouping
+                                .observe_property(property_pointer, protocol_preference)
                                 .await?;
+                        } else {
+                            result = Some(
+                                consumed_sdf_grouping
+                                    .read_property(property_pointer, protocol_preference)
+                                    .await?,
+                            );
                         }
                     }
                     AffordanceOperation::Write {
                         input,
                         property_pointer,
+                        common_args,
                     } => todo!(),
-                    AffordanceOperation::Invoke { action_pointer } => todo!(),
-                    AffordanceOperation::Subscribe { event_pointer } => todo!(),
-                    AffordanceOperation::Configure { input_file_name } => todo!(),
+                    AffordanceOperation::Invoke {
+                        action_pointer,
+                        common_args,
+                    } => todo!(),
+                    AffordanceOperation::Subscribe {
+                        event_pointer,
+                        common_args,
+                    } => todo!(),
+                    AffordanceOperation::Configure {
+                        input_file_name,
+                        common_args,
+                    } => todo!(),
                 }
 
                 if let Some(result) = result {
@@ -123,23 +163,24 @@ impl Operation {
         }
     }
 
-    fn list_config_parameters(target_definition: SdfGrouping, show_schema: bool) {
-        let sdf_context = target_definition.sdf_context().unwrap_or_default();
+    fn list_config_parameters(
+        consumed_sdf_grouping: ConsumedSdfGrouping,
+        show_schema: bool,
+    ) -> anyhow::Result<()> {
+        let definitions = consumed_sdf_grouping.list_config_parameters();
 
-        if sdf_context.is_empty() {
-            eprintln!("SDF Grouping does not contain context definitions!");
-            return;
+        if definitions.is_empty() {
+            bail!("SDF Grouping does not contain context definitions!");
         }
 
-        let mut configurable_parameters = sdf_context
+        let mut configurable_parameters = definitions
             .into_iter()
             .filter(|(_, value)| value.writable)
             .peekable();
 
         match configurable_parameters.peek() {
             None => {
-                eprintln!("SDF Thing does not have configurable parameters!");
-                return;
+                bail!("SDF Thing does not have configurable parameters!");
             }
             Some(_) => eprintln!("Configurable Parameters:"),
         }
@@ -151,6 +192,8 @@ impl Operation {
                 eprintln!("Schema: {}", serde_json::to_string(&value).unwrap());
             }
         }
+
+        Ok(())
     }
 
     // async fn obtain_sdf_message(&self, instance_url: Url) -> anyhow::Result<SdfMessage> {

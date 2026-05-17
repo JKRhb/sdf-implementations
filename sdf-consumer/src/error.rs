@@ -9,7 +9,7 @@
 use std::fmt::Display;
 
 #[derive(Debug)]
-pub(crate) struct SdfConsumerError {
+pub struct SdfConsumerError {
     pub error_message: String,
 }
 
