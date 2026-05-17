@@ -783,6 +783,7 @@ pub struct SdfProperty {
     #[serde(default = "default_bool_true", skip_serializing_if = "skip_bool_true")]
     pub observable: bool,
 
+    #[builder(default)]
     pub sdf_protocol_map: Option<PropertyProtocolMap>,
 }
 
