@@ -120,11 +120,11 @@ impl ConsumedSdfProperty {
         let mut result = Vec::new();
 
         if let Some(sdf_protocol_map) = self.internal_data.sdf_protocol_map {
-            if let Some(coap_protocol_map) = sdf_protocol_map.coap {
+            if let Some(_coap_protocol_map) = sdf_protocol_map.coap {
                 result.push("coap".to_string());
             }
 
-            if let Some(http_protocol_map) = sdf_protocol_map.http {
+            if let Some(_http_protocol_map) = sdf_protocol_map.http {
                 result.push("http".to_string());
             }
         }
@@ -155,7 +155,7 @@ impl ConsumedSdfGrouping {
     pub(crate) async fn read_property(
         self,
         property_pointer: String,
-        protocol_preference: Vec<String>,
+        _protocol_preference: Vec<String>,
     ) -> anyhow::Result<serde_json::Value> {
         let sdf_consumer = self.sdf_consumer.clone();
         let consumed_sdf_property = self.get_property(property_pointer).context("hey")?;
@@ -166,7 +166,7 @@ impl ConsumedSdfGrouping {
     pub(crate) async fn observe_property(
         self,
         property_pointer: String,
-        protocol_preference: Vec<String>,
+        _protocol_preference: Vec<String>,
     ) -> anyhow::Result<serde_json::Value> {
         let sdf_consumer = self.sdf_consumer.clone();
         let consumed_sdf_property = self.get_property(property_pointer).context("hey")?;
@@ -177,7 +177,7 @@ impl ConsumedSdfGrouping {
     pub(crate) async fn write_property(
         self,
         property_pointer: String,
-        protocol_preference: Vec<String>,
+        _protocol_preference: Vec<String>,
     ) -> anyhow::Result<serde_json::Value> {
         let sdf_consumer = self.sdf_consumer.clone();
         let consumed_sdf_property = self.get_property(property_pointer).context("hey")?;

@@ -29,19 +29,19 @@ impl ProtocolImplementation for CoapsImplementation {
 
     async fn perform_read_operation(
         &self,
-        consumed_sdf_property: ConsumedSdfProperty,
+        _consumed_sdf_property: ConsumedSdfProperty,
     ) -> anyhow::Result<Value> {
         todo!()
     }
 
     async fn perform_observe_operation(
         &self,
-        consumed_sdf_property: ConsumedSdfProperty,
+        _consumed_sdf_property: ConsumedSdfProperty,
     ) -> anyhow::Result<()> {
         todo!()
     }
 
-    async fn obtain_sdf_snapshot(&self, instance_url: Url) -> anyhow::Result<SdfMessage> {
+    async fn obtain_sdf_snapshot(&self, _instance_url: Url) -> anyhow::Result<SdfMessage> {
         todo!()
     }
 }

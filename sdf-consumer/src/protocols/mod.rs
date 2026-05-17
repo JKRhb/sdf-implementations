@@ -10,10 +10,7 @@ use std::collections::HashSet;
 
 use async_trait::async_trait;
 use reqwest::Url;
-use sdf_data_structures::{
-    instance::SdfMessage,
-    traits::{SdfAffordance, SdfGrouping},
-};
+use sdf_data_structures::instance::SdfMessage;
 use serde_json::Value;
 
 use crate::{

@@ -139,21 +139,21 @@ impl Cli {
                         }
                     }
                     AffordanceOperation::Write {
-                        input,
-                        property_pointer,
-                        common_args,
+                        input: _,
+                        property_pointer: _,
+                        common_args: _,
                     } => todo!(),
                     AffordanceOperation::Invoke {
-                        action_pointer,
-                        common_args,
+                        action_pointer: _,
+                        common_args: _,
                     } => todo!(),
                     AffordanceOperation::Subscribe {
-                        event_pointer,
-                        common_args,
+                        event_pointer: _,
+                        common_args: _,
                     } => todo!(),
                     AffordanceOperation::Configure {
-                        input_file_name,
-                        common_args,
+                        input_file_name: _,
+                        common_args: _,
                     } => todo!(),
                 }
 

@@ -6,14 +6,13 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::{collections::HashSet, fmt::format};
+use std::collections::HashSet;
 
 use anyhow::{Context, bail};
 use async_trait::async_trait;
 use reqwest::Url;
 use sdf_data_structures::{
-    instance::SdfMessage,
-    model::protocol_mappings::http::{HttpProtocolMap, PropertyHttpProtocolMap},
+    instance::SdfMessage, model::protocol_mappings::http::PropertyHttpProtocolMap,
 };
 use serde_json::{Map, Value};
 
@@ -68,7 +67,7 @@ impl HttpProtocolMapping for ConsumedSdfProperty {
         sdf_protocol_map
             .and_then(|x| x.sdf_operations)
             .and_then(|x| x.read)
-            .and_then(|x| Some(x.method))
+            .map(|x| x.method)
             .unwrap_or("GET".to_string())
     }
 
@@ -116,7 +115,7 @@ impl ProtocolImplementation for HttpImplementation {
 
     async fn perform_observe_operation(
         &self,
-        consumed_sdf_property: ConsumedSdfProperty,
+        _consumed_sdf_property: ConsumedSdfProperty,
     ) -> anyhow::Result<()> {
         todo!()
     }

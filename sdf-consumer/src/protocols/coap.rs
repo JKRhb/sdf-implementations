@@ -19,11 +19,11 @@ use sdf_data_structures::instance::{
 use serde_json::{Map, Value, json};
 use uuid::Uuid;
 
-use crate::cli::{AffordanceOperation, Cli};
+use crate::cli::AffordanceOperation;
 use crate::consumer::ConsumedSdfProperty;
 use crate::error::SdfConsumerError;
+use crate::protocols::ProtocolImplementation;
 use crate::protocols::common::{determine_url, obtain_method, obtain_operation};
-use crate::protocols::{ProtocolImplementation, common};
 
 trait CoapProtocolMapping {
     fn url(&self) -> String;
@@ -88,12 +88,12 @@ impl ProtocolImplementation for CoapImplementation {
 
     async fn perform_observe_operation(
         &self,
-        consumed_sdf_property: ConsumedSdfProperty,
+        _consumed_sdf_property: ConsumedSdfProperty,
     ) -> anyhow::Result<()> {
         todo!()
     }
 
-    async fn obtain_sdf_snapshot(&self, instance_url: Url) -> anyhow::Result<SdfMessage> {
+    async fn obtain_sdf_snapshot(&self, _instance_url: Url) -> anyhow::Result<SdfMessage> {
         todo!()
     }
 }
@@ -114,14 +114,14 @@ pub async fn handle_interaction(
             AffordanceOperation::Read {
                 observe: _,
                 property_pointer: _,
-                common_args,
+                common_args: _,
             } => {
                 return perform_read_operation(protocol_map, sdf_model, sdf_instance).await;
             }
             AffordanceOperation::Write {
                 property_pointer: _,
                 input,
-                common_args,
+                common_args: _,
             } => {
                 if let Some(input) = input {
                     return perform_write_operation(protocol_map, sdf_model, sdf_instance, input)
@@ -134,7 +134,7 @@ pub async fn handle_interaction(
             }
             AffordanceOperation::Configure {
                 input_file_name,
-                common_args,
+                common_args: _,
             } => {
                 perform_configuration(
                     instance_url,
@@ -165,7 +165,7 @@ async fn perform_configuration(
 
     let contents = fs::read_to_string(input_file_name)?;
 
-    let path = serde_json::from_str::<serde_json::Map<String, Value>>(&contents)?;
+    let _path = serde_json::from_str::<serde_json::Map<String, Value>>(&contents)?;
 
     patch.insert("deviceName".to_string(), json!("Reconfigured Sensor"));
 
@@ -192,7 +192,7 @@ async fn perform_configuration(
 
     let payload = serde_json::to_vec(&sdf_message?)?;
 
-    let response = UdpCoAPClient::post(instance_url, payload).await?;
+    let _response = UdpCoAPClient::post(instance_url, payload).await?;
 
     Ok(())
 }
