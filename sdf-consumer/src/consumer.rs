@@ -25,10 +25,14 @@ impl SdfConsumer {
         protocol_implementation: Box<dyn ProtocolImplementation>,
     ) -> anyhow::Result<()> {
         let uri_schemes_to_register = protocol_implementation.supported_uri_schemes().clone();
-        let supported_protocols: Vec<&String> = self.supported_protocols.keys().collect();
+        let supported_protocols: Vec<&str> = self
+            .supported_protocols
+            .keys()
+            .map(|x| x.as_str())
+            .collect();
 
         for uri_scheme in &uri_schemes_to_register {
-            if supported_protocols.contains(&uri_scheme) {
+            if supported_protocols.contains(uri_scheme) {
                 bail!(format!(
                     "URI scheme {} has already been registered with this SDF consumer",
                     uri_scheme
@@ -38,9 +42,9 @@ impl SdfConsumer {
 
         let foobar = Rc::new(protocol_implementation);
 
-        for uri_scheme in &uri_schemes_to_register {
+        for uri_scheme in uri_schemes_to_register {
             self.supported_protocols
-                .insert(uri_scheme.clone(), foobar.clone());
+                .insert(uri_scheme.to_string(), foobar.clone());
         }
 
         Ok(())
@@ -171,8 +175,8 @@ impl ConsumedSdfGrouping {
         property_pointer: &str,
         _protocol_preference: Vec<String>,
     ) -> anyhow::Result<serde_json::Value> {
-        let sdf_consumer = self.sdf_consumer.clone();
-        let consumed_sdf_property = self.get_property(property_pointer)?;
+        let _sdf_consumer = self.sdf_consumer.clone();
+        let _consumed_sdf_property = self.get_property(property_pointer)?;
 
         todo!()
     }
@@ -182,8 +186,8 @@ impl ConsumedSdfGrouping {
         property_pointer: &str,
         _protocol_preference: Vec<String>,
     ) -> anyhow::Result<serde_json::Value> {
-        let sdf_consumer = self.sdf_consumer.clone();
-        let consumed_sdf_property = self.get_property(property_pointer)?;
+        let _sdf_consumer = self.sdf_consumer.clone();
+        let _consumed_sdf_property = self.get_property(property_pointer)?;
 
         todo!()
     }

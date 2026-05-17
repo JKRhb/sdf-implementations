@@ -19,8 +19,8 @@ pub(crate) struct CoapsImplementation {}
 
 #[async_trait]
 impl ProtocolImplementation for CoapsImplementation {
-    fn supported_uri_schemes(&self) -> HashSet<String> {
-        HashSet::from(["coaps".to_string()])
+    fn supported_uri_schemes(&self) -> HashSet<&'static str> {
+        HashSet::from(["coaps"])
     }
 
     async fn perform_configuration(&self) -> anyhow::Result<()> {
@@ -31,6 +31,14 @@ impl ProtocolImplementation for CoapsImplementation {
         &self,
         _consumed_sdf_property: ConsumedSdfProperty,
     ) -> anyhow::Result<Value> {
+        todo!()
+    }
+
+    async fn perform_write_operation(
+        &self,
+        _consumed_sdf_property: ConsumedSdfProperty,
+        _input_value: Value,
+    ) -> anyhow::Result<()> {
         todo!()
     }
 

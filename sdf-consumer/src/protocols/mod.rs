@@ -41,7 +41,7 @@ impl TryFrom<Url> for Box<dyn ProtocolImplementation> {
 
 #[async_trait]
 pub trait ProtocolImplementation {
-    fn supported_uri_schemes(&self) -> HashSet<String>;
+    fn supported_uri_schemes(&self) -> HashSet<&'static str>;
 
     async fn perform_configuration(&self) -> anyhow::Result<()>;
 
@@ -53,6 +53,12 @@ pub trait ProtocolImplementation {
     async fn perform_observe_operation(
         &self,
         consumed_sdf_property: ConsumedSdfProperty,
+    ) -> anyhow::Result<()>;
+
+    async fn perform_write_operation(
+        &self,
+        consumed_sdf_property: ConsumedSdfProperty,
+        input_value: Value,
     ) -> anyhow::Result<()>;
 
     async fn obtain_sdf_snapshot(&self, instance_url: Url) -> anyhow::Result<SdfMessage>;

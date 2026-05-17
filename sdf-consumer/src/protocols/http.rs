@@ -14,15 +14,9 @@ use reqwest::Url;
 use sdf_data_structures::{
     instance::SdfMessage, model::protocol_mappings::http::PropertyHttpProtocolMap,
 };
-use serde_json::{Map, Value};
+use serde_json::Value;
 
-use crate::{
-    consumer::ConsumedSdfProperty,
-    protocols::{
-        ProtocolImplementation,
-        common::{determine_url, obtain_method, obtain_operation},
-    },
-};
+use crate::{consumer::ConsumedSdfProperty, protocols::ProtocolImplementation};
 
 trait HttpProtocolMapping {
     fn obtain_protocol_map(&self) -> Option<PropertyHttpProtocolMap>;
@@ -85,10 +79,16 @@ impl HttpProtocolMapping for ConsumedSdfProperty {
 
 pub(crate) struct HttpImplementation {}
 
+impl HttpImplementation {
+    pub(crate) fn new() -> Self {
+        Self {}
+    }
+}
+
 #[async_trait]
 impl ProtocolImplementation for HttpImplementation {
-    fn supported_uri_schemes(&self) -> HashSet<String> {
-        HashSet::from(["http".to_string(), "https".to_string()])
+    fn supported_uri_schemes(&self) -> HashSet<&'static str> {
+        HashSet::from(["http", "https"])
     }
 
     async fn perform_configuration(&self) -> anyhow::Result<()> {
@@ -124,6 +124,34 @@ impl ProtocolImplementation for HttpImplementation {
         todo!()
     }
 
+    async fn perform_write_operation(
+        &self,
+        _consumed_sdf_property: ConsumedSdfProperty,
+        _input_value: Value,
+    ) -> anyhow::Result<()> {
+        let url = _consumed_sdf_property
+            .url()
+            .context("Error constructing HTTP URI")?;
+
+        println!("{url}");
+
+        let method = _consumed_sdf_property.method();
+
+        match method.as_str() {
+            "PUT" => {
+                reqwest::Client::new()
+                    .put(url)
+                    .body(serde_json::to_string(&_input_value)?)
+                    .send()
+                    .await?;
+
+                Ok(())
+            }
+            // TODO: Handle other methods as well
+            _ => Ok(()),
+        }
+    }
+
     async fn obtain_sdf_snapshot(&self, instance_url: Url) -> anyhow::Result<SdfMessage> {
         let sdf_instance = reqwest::get(instance_url)
             .await?
@@ -131,45 +159,5 @@ impl ProtocolImplementation for HttpImplementation {
             .await?;
 
         return Ok(sdf_instance);
-    }
-}
-
-impl HttpImplementation {
-    pub(crate) async fn perform_write_operation(
-        self,
-        http_protocol_map: &Map<String, Value>,
-        sdf_model: &Value,
-        sdf_instance: &Value,
-        input: &Value,
-    ) -> anyhow::Result<Option<Value>> {
-        let write_operation = obtain_operation(http_protocol_map, "write".to_string())?;
-
-        let url = determine_url(
-            write_operation,
-            http_protocol_map,
-            sdf_instance,
-            sdf_model,
-            "http",
-        )?;
-
-        let method = obtain_method(write_operation, "PUT");
-
-        match method.as_str() {
-            "PUT" => {
-                reqwest::Client::new()
-                    .put(url)
-                    .body(serde_json::to_string(input)?)
-                    .send()
-                    .await?;
-
-                Ok(None)
-            }
-            // TODO: Handle other methods as well
-            _ => Ok(None),
-        }
-    }
-
-    pub(crate) fn new() -> Self {
-        Self {}
     }
 }
