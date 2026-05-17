@@ -1,8 +1,16 @@
+// Copyright 2026 Jan Romann
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT.
+//
+// SPDX-License-Identifier: MIT
+
 pub mod protocol_mappings;
 
 use std::collections::{HashMap, HashSet};
 
-use anyhow::Context;
+use anyhow::{Context, bail};
 use derive_builder::Builder;
 use json_merge_patch::json_merge_patch;
 use json_pointer::JsonPointer;
@@ -12,8 +20,13 @@ use serde_json::{Map, Value};
 use serde_with::skip_serializing_none;
 
 use crate::{
+    error::SdfDataStructureError,
+    instance::SdfMessage,
+    model::protocol_mappings::{coap::PropertyCoapProtocolMap, http::PropertyHttpProtocolMap},
     supplement::SdfSupplement,
-    traits::{GlobalNameAggregator, GlobalNameContributor, SdfDataStructure},
+    traits::{
+        GlobalNameAggregator, GlobalNameContributor, SdfAffordance, SdfDataStructure, SdfGrouping,
+    },
     util::{default_bool_true, none_extra, skip_bool_true},
 };
 
@@ -110,7 +123,59 @@ enum NewVersionType {
     Unchanged = 0,
 }
 
+enum GroupingType {
+    SdfThing,
+    SdfObject,
+}
+
 impl SdfModel {
+    pub fn resolve_json_pointer(&self, json_pointer: String) -> anyhow::Result<Value> {
+        let model_value = serde_json::to_value(self)?;
+
+        let parsed_json_pointer = json_pointer.parse::<JsonPointer<_, _>>().unwrap();
+
+        let result = parsed_json_pointer
+            .get(&model_value)
+            .clone()
+            .unwrap()
+            .clone();
+
+        Ok(result)
+    }
+
+    fn resolve_pointer_to_grouping(json_pointer: String) -> anyhow::Result<GroupingType> {
+        let mut split_json_pointer = json_pointer.split('/').rev();
+        split_json_pointer.next().context("hi")?;
+
+        let definition_name = split_json_pointer.next().context("yeah")?;
+
+        match definition_name {
+            "sdfObject" => Ok(GroupingType::SdfObject),
+            "sdfThing" => Ok(GroupingType::SdfThing),
+            _ => bail!("orrr"),
+        }
+    }
+
+    pub fn resolve_entry_point_from_sdf_message(
+        &self,
+        sdf_message: SdfMessage,
+    ) -> anyhow::Result<SdfGrouping> {
+        let entry_point_value = sdf_message.get_entry_point();
+
+        let definition = self.resolve_json_pointer(entry_point_value.clone())?;
+
+        let sdf_grouping = match Self::resolve_pointer_to_grouping(entry_point_value)? {
+            GroupingType::SdfObject => {
+                SdfGrouping::SdfObject(serde_json::from_value::<SdfObject>(definition).unwrap())
+            }
+            GroupingType::SdfThing => {
+                SdfGrouping::SdfThing(serde_json::from_value::<SdfThing>(definition).unwrap())
+            }
+        };
+
+        Ok(sdf_grouping)
+    }
+
     /// Determines the set of global names of this SDF Model that conflict a list
     /// of existing SDF models.
     pub fn determine_global_name_collisions(
@@ -193,7 +258,7 @@ impl SdfModel {
         Ok(updated_model)
     }
 
-    fn check_for_backwards_compatibility(json_pointer: &String) -> bool {
+    fn check_for_backwards_compatibility(json_pointer: &str) -> bool {
         // TODO: Double-check whether this approach works
         let minor_change_keywords = vec![
             "#", // Top-level definitions
@@ -398,6 +463,32 @@ pub struct SdfThing {
     pub additional_qualities: Option<Map<String, Value>>,
 }
 
+// impl SdfGrouping for SdfThing {
+//     fn sdf_property(self) -> Option<HashMap<String, SdfProperty>> {
+//         self.sdf_property
+//     }
+
+//     fn sdf_action(self) -> Option<HashMap<String, SdfAction>> {
+//         self.sdf_action
+//     }
+
+//     fn sdf_event(self) -> Option<HashMap<String, SdfEvent>> {
+//         self.sdf_event
+//     }
+
+//     fn sdf_context(self) -> Option<HashMap<String, SdfContext>> {
+//         self.sdf_context
+//     }
+
+//     fn sdf_thing(self) -> Option<HashMap<String, SdfThing>> {
+//         self.sdf_thing
+//     }
+
+//     fn sdf_object(self) -> Option<HashMap<String, SdfObject>> {
+//         self.sdf_object
+//     }
+// }
+
 impl GlobalNameContributor for SdfThing {
     const QUALITY_NAME: &'static str = "sdfThing";
 
@@ -477,6 +568,32 @@ pub struct SdfObject {
     #[builder(setter(into, strip_option), default)]
     pub additional_qualities: Option<Map<String, Value>>,
 }
+
+// impl SdfGrouping for SdfObject {
+//     fn sdf_property(self) -> Option<HashMap<String, SdfProperty>> {
+//         self.sdf_property
+//     }
+
+//     fn sdf_action(self) -> Option<HashMap<String, SdfAction>> {
+//         self.sdf_action
+//     }
+
+//     fn sdf_event(self) -> Option<HashMap<String, SdfEvent>> {
+//         self.sdf_event
+//     }
+
+//     fn sdf_context(self) -> Option<HashMap<String, SdfContext>> {
+//         self.sdf_context
+//     }
+
+//     fn sdf_thing(self) -> Option<HashMap<String, SdfThing>> {
+//         None
+//     }
+
+//     fn sdf_object(self) -> Option<HashMap<String, SdfObject>> {
+//         None
+//     }
+// }
 
 impl GlobalNameContributor for SdfObject {
     const QUALITY_NAME: &'static str = "sdfObject";
@@ -646,12 +763,13 @@ pub struct ObjectSchema {
     pub properties: Option<HashMap<String, SdfData>>,
 }
 
-// #[skip_serializing_none]
-// #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
-// pub struct PropertyProtocolMap {
-//     pub coap: Option<PropertyCoapProtocolMap>,
-//     pub http: Option<PropertyCoapProtocolMap>,
-// }
+#[skip_serializing_none]
+#[cfg_attr(feature = "utoipa", derive(ToSchema))]
+#[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
+pub struct PropertyProtocolMap {
+    pub coap: Option<PropertyCoapProtocolMap>,
+    pub http: Option<PropertyHttpProtocolMap>,
+}
 
 #[skip_serializing_none]
 #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
@@ -672,7 +790,22 @@ pub struct SdfProperty {
     #[builder(setter(strip_option), default = "true")]
     #[serde(default = "default_bool_true", skip_serializing_if = "skip_bool_true")]
     pub observable: bool,
-    // pub sdf_protocol_map: Option<PropertyProtocolMap>,
+
+    #[builder(default)]
+    pub sdf_protocol_map: Option<PropertyProtocolMap>,
+}
+
+impl TryFrom<SdfAffordance> for SdfProperty {
+    type Error = SdfDataStructureError;
+
+    fn try_from(value: SdfAffordance) -> Result<Self, Self::Error> {
+        match value {
+            SdfAffordance::SdfProperty(sdf_property) => Ok(sdf_property),
+            _ => Err(SdfDataStructureError::TargetNamespaceError(
+                "Invalid conversion".to_string(),
+            )),
+        }
+    }
 }
 
 impl GlobalNameContributor for SdfProperty {

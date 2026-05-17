@@ -1,125 +1,215 @@
-use std::sync::Arc;
+// Copyright 2026 Jan Romann
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT.
+//
+// SPDX-License-Identifier: MIT
+
+use std::io::{self, IsTerminal, Write};
+
+use anyhow::bail;
+use clap::{Args, Parser, Subcommand};
+use reqwest::Url;
+use serde_json::Value;
 
 use crate::{
-    SdfConsumerError,
-    protocol_mappings::{Operation, SupportedProtocols},
+    consumer::{ConsumedSdfGrouping, SdfConsumer},
+    protocols::http::HttpImplementation,
 };
-use clap::Parser;
-use coap::{
-    UdpCoAPClient,
-    client::CoAPClient,
-    dtls::UdpDtlsConfig,
-    request::{Method, RequestBuilder},
-};
-use serde_json::Value;
-use std::net::ToSocketAddrs;
-use thiserror::Error;
-use webrtc_dtls::{cipher_suite::CipherSuiteId, config::Config};
-
-/// Domain-specific errors
-#[derive(Error, Debug)]
-pub(crate) enum CliError {
-    #[error("Please specify one of the available subcommands!")]
-    MissingCommand(),
-}
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
-pub(crate) struct Cli {
-    /// The operation that is supposed to be performed with the affordance.
-    ///
-    /// Only has to be provided for properties at the moment if the user
-    /// intends to write a property instead of reading it.
-    #[command(subcommand)]
-    pub(crate) operation: Operation,
+pub(crate) enum Cli {
+    #[clap(flatten)]
+    AffordanceOperation(AffordanceOperation),
 
-    /// URL pointing to a resource retrieving instance-related messages.
-    pub(crate) instance_url: String,
+    /// Lists all writable sdfContext definition
+    ListConfigParameters {
+        /// URL pointing to a resource hosting an SDF snapshot containing the configurable parameters.
+        instance_url: Url,
 
-    /// JSON Pointer to the affordance that is to be used.
-    ///
-    /// The JSON Pointer must match the path within the SDF model, not the
-    /// instance.
-    pub(crate) affordance_pointer: String,
+        /// Show the schema definition of the config parameter.
+        #[clap(long, short)]
+        show_schema: bool,
+    },
+}
+
+#[derive(Args, Debug)]
+pub(crate) struct CommonAffordanceArguments {
+    /// URL pointing to a resource hosting an SDF snapshot.
+    instance_url: Url,
 
     /// Preferred protocol map for interactions.
     ///
     /// If unset, coap will be used by default if present in the resolved
     /// model.
-    preferred_protocol: Option<SupportedProtocols>,
+    #[arg(short, long, value_delimiter = ',', num_args = 1..)]
+    preferred_protocol: Option<Vec<String>>,
+}
+
+#[derive(Subcommand)]
+pub(crate) enum AffordanceOperation {
+    /// Reads a property from an SDF Thing
+    Read {
+        #[clap(flatten)]
+        common_args: CommonAffordanceArguments,
+
+        property_pointer: String,
+
+        #[clap(long, short)]
+        observe: bool,
+    },
+
+    /// Writes the property of an SDF Thing
+    Write {
+        #[clap(flatten)]
+        common_args: CommonAffordanceArguments,
+
+        property_pointer: String,
+
+        input: Value,
+    },
+
+    /// Invokes an action of an SDF Thing.
+    Invoke {
+        #[clap(flatten)]
+        common_args: CommonAffordanceArguments,
+
+        action_pointer: String,
+    },
+
+    /// Subscribes to an event of an SDF Thing.
+    Subscribe {
+        #[clap(flatten)]
+        common_args: CommonAffordanceArguments,
+
+        event_pointer: String,
+    },
+
+    /// Reconfigures a Thing
+    Configure {
+        #[clap(flatten)]
+        common_args: CommonAffordanceArguments,
+
+        input_file_name: String,
+    },
 }
 
 impl Cli {
-    // TODO: Maybe refactor this function
-    pub(crate) fn get_protocol_preference(&self) -> Vec<SupportedProtocols> {
-        let preferred_protocol = self.preferred_protocol.unwrap_or(SupportedProtocols::Coap);
+    pub(crate) async fn handle_operation(self) -> anyhow::Result<()> {
+        let mut sdf_consumer = SdfConsumer::new();
 
-        let mut protocol_order = vec![preferred_protocol];
+        sdf_consumer.add_protocol_implementation(Box::from(HttpImplementation::new()))?;
 
-        for protocol in [SupportedProtocols::Coap, SupportedProtocols::Http] {
-            if protocol_order.contains(&protocol) {
-                continue;
+        match self {
+            Cli::ListConfigParameters {
+                show_schema,
+                instance_url,
+            } => {
+                let consumed_sdf_grouping = sdf_consumer.consume_from_url(instance_url).await?;
+
+                Self::list_config_parameters(consumed_sdf_grouping, show_schema)
             }
+            Cli::AffordanceOperation(affordance_operation) => {
+                let mut result: Option<Value> = None;
 
-            protocol_order.push(protocol);
+                match affordance_operation {
+                    AffordanceOperation::Read {
+                        common_args,
+                        property_pointer,
+                        observe,
+                    } => {
+                        let protocol_preference = common_args.preferred_protocol;
+                        let instance_url = common_args.instance_url;
+
+                        let consumed_sdf_grouping =
+                            sdf_consumer.consume_from_url(instance_url).await?;
+
+                        if observe {
+                            consumed_sdf_grouping
+                                .observe_property(property_pointer.as_str(), protocol_preference)
+                                .await?;
+                        } else {
+                            result = Some(
+                                consumed_sdf_grouping
+                                    .read_property(property_pointer.as_str(), protocol_preference)
+                                    .await?,
+                            );
+                        }
+                    }
+                    AffordanceOperation::Write {
+                        input,
+                        property_pointer,
+                        common_args,
+                    } => {
+                        let protocol_preference = common_args.preferred_protocol;
+                        let instance_url = common_args.instance_url;
+
+                        let consumed_sdf_grouping =
+                            sdf_consumer.consume_from_url(instance_url).await?;
+
+                        consumed_sdf_grouping
+                            .write_property(property_pointer.as_str(), input, protocol_preference)
+                            .await?;
+                    }
+                    AffordanceOperation::Invoke {
+                        action_pointer: _,
+                        common_args: _,
+                    } => todo!(),
+                    AffordanceOperation::Subscribe {
+                        event_pointer: _,
+                        common_args: _,
+                    } => todo!(),
+                    AffordanceOperation::Configure {
+                        input_file_name: _,
+                        common_args: _,
+                    } => todo!(),
+                }
+
+                if let Some(result) = result {
+                    io::stdout().write_all(serde_json::to_string(&result).unwrap().as_bytes())?;
+
+                    if std::io::stdout().is_terminal() {
+                        println!();
+                    }
+                }
+
+                Ok(())
+            }
         }
-
-        protocol_order
     }
 
-    pub(crate) async fn obtain_sdf_instance(&self) -> anyhow::Result<Value> {
-        let instance_url = &self.instance_url;
+    fn list_config_parameters(
+        consumed_sdf_grouping: ConsumedSdfGrouping,
+        show_schema: bool,
+    ) -> anyhow::Result<()> {
+        let definitions = consumed_sdf_grouping.list_config_parameters();
 
-        if instance_url.starts_with("http") {
-            let sdf_instance = reqwest::get(instance_url).await?.json::<Value>().await?;
-
-            return Ok(sdf_instance);
-        } else if instance_url.starts_with("coaps") {
-            let config = Config {
-                psk: Some(Arc::new(|_| Ok("secretPSK".as_bytes().to_vec()))),
-                cipher_suites: vec![CipherSuiteId::Tls_Psk_With_Aes_128_Ccm_8],
-                psk_identity_hint: Some("identity".as_bytes().to_vec()),
-                ..Default::default()
-            };
-
-            let dtls_config = UdpDtlsConfig {
-                config,
-                dest_addr: ("192.168.178.45", 5684)
-                    .to_socket_addrs()
-                    .unwrap()
-                    .next()
-                    .unwrap(),
-            };
-
-            let client = CoAPClient::from_udp_dtls_config(dtls_config)
-                .await
-                .expect("could not create client");
-            let domain = "192.168.178.45:5684";
-
-            let request = RequestBuilder::new("/.well-known/sdf/instance", Method::Get)
-                .domain(domain.to_string())
-                .build();
-
-            let response = client.send(request).await.unwrap();
-            let payload_string = String::from_utf8(response.message.payload).unwrap();
-
-            let sdf_instance = serde_json::from_str(&payload_string)?;
-
-            println!("{sdf_instance}");
-
-            return Ok(sdf_instance);
-        } else if instance_url.starts_with("coap") {
-            let response = UdpCoAPClient::get(instance_url).await.unwrap();
-            let payload_string = String::from_utf8(response.message.payload).unwrap();
-
-            let sdf_instance = serde_json::from_str(&payload_string)?;
-
-            return Ok(sdf_instance);
+        if definitions.is_empty() {
+            bail!("SDF Grouping does not contain context definitions!");
         }
 
-        Err(SdfConsumerError {
-            error_message: "Unsupported URI scheme!".to_string(),
+        let mut configurable_parameters = definitions
+            .into_iter()
+            .filter(|(_, value)| value.writable)
+            .peekable();
+
+        match configurable_parameters.peek() {
+            None => {
+                bail!("SDF Thing does not have configurable parameters!");
+            }
+            Some(_) => eprintln!("Configurable Parameters:"),
         }
-        .into())
+
+        for (key, value) in configurable_parameters {
+            eprintln!("{key}");
+
+            if show_schema {
+                eprintln!("Schema: {}", serde_json::to_string(&value).unwrap());
+            }
+        }
+
+        Ok(())
     }
 }

@@ -3307,6 +3307,7 @@ name = "sdf-processor"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "clap",
  "coap",
  "json-pointer",

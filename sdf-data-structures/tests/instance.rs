@@ -1,3 +1,11 @@
+// Copyright 2026 Jan Romann
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT.
+//
+// SPDX-License-Identifier: MIT
+
 use sdf_data_structures::instance::InfoBlockBuilder;
 use sdf_data_structures::instance::SdfInstanceBuilder;
 use sdf_data_structures::instance::SdfInstanceOfBuilder;
@@ -49,8 +57,8 @@ fn test_sdf_object_definition() {
         .build()
         .unwrap();
 
-    let sdf_model = SdfModelBuilder::default()
-        .sdf_object(HashMap::from_iter(vec![("bar".into(), sdf_object.clone())]))
+    SdfModelBuilder::default()
+        .sdf_object(HashMap::from([("bar".into(), sdf_object.clone())]))
         .build()
         .unwrap();
 }

@@ -1,6 +1,15 @@
+// Copyright 2026 Jan Romann
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT.
+//
+// SPDX-License-Identifier: MIT
+
 use std::{collections::HashMap, error::Error, fmt::Display};
 
 use derive_builder::Builder;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use serde_with::skip_serializing_none;
@@ -104,7 +113,50 @@ impl Display for UrlResolutionError {
     }
 }
 
-impl SdfMessage {}
+impl SdfMessage {
+    fn generate_model_query_string(&self) -> Option<String> {
+        let blah = [
+            (&self.sdf_instance_of.lineage, "lineage"),
+            (&self.sdf_instance_of.version, "version"),
+            (&self.sdf_instance_of.min_version, "minVersion"),
+            (&self.sdf_instance_of.max_version, "maxVersion"),
+            (
+                &self.sdf_instance_of.exclusive_min_version,
+                "exclusiveMinVersion",
+            ),
+            (
+                &self.sdf_instance_of.exclusive_max_version,
+                "exclusiveMaxVersion",
+            ),
+        ];
+
+        let query = blah
+            .iter()
+            .filter_map(|(value, key)| value.as_ref().map(|value| (value, key)))
+            .map(|(value, key)| format!("{key}={}", value))
+            .join("&");
+
+        if query.is_empty() { None } else { Some(query) }
+    }
+
+    pub fn get_sdf_model_url(&self) -> anyhow::Result<Option<String>> {
+        let target_namespace_url = self.get_target_namespace()?;
+
+        if let Some(target_namespace_url) = target_namespace_url {
+            if let Some(query_string) = self.generate_model_query_string() {
+                Ok(Some(format!("{target_namespace_url}?{query_string}")))
+            } else {
+                Ok(Some(target_namespace_url))
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn get_entry_point(&self) -> String {
+        self.sdf_instance_of.entry_point.clone()
+    }
+}
 
 #[skip_serializing_none]
 #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
