@@ -305,7 +305,10 @@ mod tests {
 
     use actix_web::web;
     use sdf_data_structures::{
-        model::{InfoBlockBuilder, SdfModelBuilder, SdfObjectBuilder, SdfProperty},
+        model::{
+            SdfModelBuilder, affordances::sdf_property::SdfProperty, info_block::InfoBlockBuilder,
+            sdf_object::SdfObjectBuilder,
+        },
         supplement::{self, AmendmentBuilder, SdfSupplementBuilder},
     };
     use serde_json::json;

@@ -39,6 +39,16 @@ fn get_basic_auth_credentials() -> anyhow::Result<BasicAuthCredentials> {
     Ok(credentials)
 }
 
+fn print_bytes(bytes: &[u8]) -> anyhow::Result<()> {
+    io::stdout().write_all(bytes)?;
+
+    if std::io::stdout().is_terminal() {
+        println!();
+    }
+
+    Ok(())
+}
+
 async fn handle_model_response(
     status_message: &'static str,
     response: Response,
@@ -49,11 +59,7 @@ async fn handle_model_response(
 
     let bytes = serde_json::to_vec(&sdf_model)?;
 
-    io::stdout().write_all(&bytes)?;
-
-    if std::io::stdout().is_terminal() {
-        println!();
-    }
+    print_bytes(&bytes)?;
 
     Ok(())
 }
@@ -134,11 +140,7 @@ async fn main() -> anyhow::Result<()> {
 
             let bytes = response.bytes().await?;
 
-            io::stdout().write_all(&bytes)?;
-
-            if std::io::stdout().is_terminal() {
-                println!();
-            }
+            print_bytes(&bytes)?;
         }
         cli::Operation::Update { input_file } => {
             let contents = fs::read_to_string(input_file)?;
@@ -204,11 +206,7 @@ async fn main() -> anyhow::Result<()> {
 
             let bytes = response.bytes().await?;
 
-            io::stdout().write_all(&bytes)?;
-
-            if std::io::stdout().is_terminal() {
-                println!();
-            }
+            print_bytes(&bytes)?;
         }
     }
 

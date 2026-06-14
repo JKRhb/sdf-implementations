@@ -2599,6 +2599,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
 
 [[package]]
+name = "ploidy-pointer"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0f2037f8335c2be8c25c06a5491488b2cc334c2e1ab086977fac7a6ab178140"
+dependencies = [
+ "ploidy-pointer-derive",
+ "ref-cast",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "ploidy-pointer-derive"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "21b97947898cc2f6d01116eceda8b40d3f694ee5f957c3c3eaa0866ed7250f5c"
+dependencies = [
+ "heck 0.5.0",
+ "itertools",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "polyval"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3279,6 +3306,7 @@ dependencies = [
  "itertools",
  "json-merge-patch",
  "json-pointer",
+ "ploidy-pointer",
  "semver",
  "serde",
  "serde_json",
@@ -3307,8 +3335,10 @@ name = "sdf-processor"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "clap",
  "coap",
+ "coap-lite",
  "json-pointer",
  "reqwest",
  "sdf-data-structures",

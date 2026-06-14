@@ -1,8 +1,16 @@
+// Copyright 2026 Jan Romann
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT.
+//
+// SPDX-License-Identifier: MIT
+
 use std::collections::{HashMap, HashSet};
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+use serde_json::Value;
 use serde_with::skip_serializing_none;
 
 use crate::{
@@ -199,7 +207,7 @@ pub struct InfoBlock {
 
     #[serde(flatten, deserialize_with = "none_extra")]
     #[builder(setter(into, strip_option), default)]
-    pub additional_qualities: Option<Map<String, Value>>,
+    pub additional_qualities: Option<HashMap<String, Value>>,
 }
 
 impl GlobalNameAggregator for SdfSupplement {

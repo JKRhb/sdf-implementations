@@ -1,11 +1,13 @@
+pub(crate) mod configuration_data;
+
 use esp_idf_hal::temp_sensor::{TempSensorConfig, TempSensorDriver};
 
-use anyhow::anyhow;
-use serde::Deserialize;
+use anyhow::{anyhow, Context};
+use serde_json::Number;
 use shtcx::{shtc3, PowerMode};
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, OnceLock},
     thread::sleep,
     time::Duration,
 };
@@ -30,9 +32,14 @@ use libcoap_rs::{
     CoapContext, CoapRequestHandler, CoapResource,
 };
 
-use sdf_data_structures::instance::{
-    InfoBlockBuilder, SdfInstanceBuilder, SdfInstanceOfBuilder, SdfMessage, SdfMessageBuilder,
+use sdf_data_structures::{
+    constants::SDF_SNAPSHOT_MESSAGE_CONTENT_FORMAT,
+    instance::{
+        InfoBlockBuilder, SdfInstanceBuilder, SdfInstanceOfBuilder, SdfMessage, SdfMessageBuilder,
+    },
 };
+
+use crate::configuration_data::ConfigurationData;
 
 #[toml_cfg::toml_config]
 pub struct Config {
@@ -46,17 +53,47 @@ pub struct Config {
     dtls_psk: &'static str,
 }
 
-#[derive(Deserialize)]
-struct ConfigurationData {
-    device_name: Option<String>,
-    unit: Option<String>,
-}
+static _SDF_MESSAGE: OnceLock<SdfMessage> = OnceLock::new();
 
-fn create_snapshot_message(
-    ip_address: String,
-    device_name: String,
-    unit: String,
-) -> anyhow::Result<SdfMessage> {
+static UNIT: OnceLock<String> = OnceLock::new();
+
+static IP_ADDRESS: OnceLock<String> = OnceLock::new();
+
+static DEVICE_NAME: OnceLock<String> = OnceLock::new();
+
+fn create_snapshot_message(temperature: Option<f32>) -> anyhow::Result<SdfMessage> {
+    let unit = UNIT.get_or_init(|| "C".to_string()).clone();
+    let ip_address = IP_ADDRESS
+        .get()
+        .context("Could not obtain the IP address")?
+        .clone();
+    let device_name = DEVICE_NAME
+        .get()
+        .context("Could not obtain the device name")?
+        .clone();
+
+    let mut binding = SdfInstanceBuilder::default();
+    let mut sdf_instance_builder = binding
+        .thing_id("urn:uuid:b38acf9d-493c-408c-90bf-868c1f5326d4")
+        .sdf_context([
+            (
+                "ipAddress".to_string(),
+                serde_json::Value::String(ip_address),
+            ),
+            (
+                "deviceName".to_string(),
+                serde_json::Value::String(device_name.to_string()),
+            ),
+            ("unit".to_string(), serde_json::Value::String(unit)),
+        ]);
+
+    if let Some(temperature) = temperature {
+        sdf_instance_builder = sdf_instance_builder.sdf_property([(
+            "temperature".to_string(),
+            serde_json::Value::Number(Number::from_f64(temperature as f64).unwrap()),
+        )]);
+    }
+
     Ok(SdfMessageBuilder::default()
         .info(
             InfoBlockBuilder::default()
@@ -77,25 +114,7 @@ fn create_snapshot_message(
                 .min_version("1.1.0")
                 .build()?,
         )
-        .sdf_instance(
-            SdfInstanceBuilder::default()
-                .thing_id("urn:uuid:b38acf9d-493c-408c-90bf-868c1f5326d4")
-                .sdf_context(HashMap::from_iter(vec![
-                    (
-                        "ipAddress".to_string(),
-                        serde_json::Value::String(ip_address),
-                    ),
-                    (
-                        "deviceName".to_string(),
-                        serde_json::Value::String(device_name.to_string()),
-                    ),
-                    (
-                        "unit".to_string(),
-                        serde_json::Value::String(unit.to_string()),
-                    ),
-                ]))
-                .build()?,
-        )
+        .sdf_instance(sdf_instance_builder.build()?)
         .build()?)
 }
 
@@ -176,31 +195,31 @@ fn main() -> anyhow::Result<()> {
     let config = I2cConfig::new().baudrate(100.kHz().into());
     let i2c = I2cDriver::new(i2c, sda, scl, &config)?;
     let mut sht = shtc3(i2c);
-    let device_id = sht.device_identifier().unwrap();
-    let sensor_main = Arc::new(Mutex::new(sht));
-    let sensor = sensor_main.clone();
-    sensor
-        .lock()
-        .unwrap()
-        .start_measurement(PowerMode::NormalMode)
-        .unwrap();
+    let _device_id = sht.device_identifier().unwrap();
+    let sensor = Arc::new(Mutex::new(sht));
+
+    {
+        sensor
+            .clone()
+            .lock()
+            .unwrap()
+            .start_measurement(PowerMode::NormalMode)
+            .unwrap();
+    }
 
     let cfg = TempSensorConfig::default();
     let mut temp = TempSensorDriver::new(&cfg, peripherals.temp_sensor)?;
     temp.enable()?;
 
-    let mut device_name = "CoAP Sensor";
-
-    let mut unit = "Cel";
-
-    let mut snapshot_message = create_snapshot_message(
-        device_name.to_string(),
-        device_name.to_string(),
-        device_name.to_string(),
-    )
-    .unwrap();
+    DEVICE_NAME.set("CoAP Sensor".to_string()).ok();
 
     let snapshot_resource = CoapResource::new(".well-known/sdf/instance", (), false);
+
+    let temp_sensor = sensor.clone();
+
+    let ip_info = wifi.wifi().sta_netif().get_ip_info().unwrap();
+
+    IP_ADDRESS.set(ip_info.ip.to_string()).ok();
 
     snapshot_resource.set_method_handler(
         CoapRequestCode::Get,
@@ -209,18 +228,27 @@ fn main() -> anyhow::Result<()> {
                   session: &mut CoapServerSession,
                   _: &CoapRequest,
                   mut response: CoapResponse| {
-                let info_info = wifi.wifi().sta_netif().get_ip_info().unwrap();
+                let mut temp_val = temp_sensor
+                    .lock()
+                    .unwrap()
+                    .get_measurement_result()
+                    .unwrap()
+                    .temperature
+                    .as_degrees_celsius();
 
-                // TODO: Fahrenheit would be C x 9/5 + 32
-
-                // property.insert("ipAddress".to_string(), info_info.ip.to_string().into());
+                if UNIT.get() == Some(&"F".to_string()) {
+                    temp_val = temp_val * 9.0 / 5.0 + 32.0;
+                }
 
                 response.set_code(CoapResponseCode::Content);
                 response.set_content_format(Some(9001));
 
+                let snapshot_message = create_snapshot_message(Some(temp_val)).unwrap();
+
                 let json = serde_json::to_string(&snapshot_message).unwrap();
                 let data = Vec::<u8>::from(json.as_bytes());
                 response.set_data(Some(data));
+                response.set_content_format(Some(SDF_SNAPSHOT_MESSAGE_CONTENT_FORMAT));
 
                 session.send(response).expect("Unable to send response");
             },
@@ -237,23 +265,16 @@ fn main() -> anyhow::Result<()> {
                 if session.proto() != CoapProtocol::Dtls {
                     response.set_code(CoapResponseCode::NotFound);
                 } else if let Some(data) = request.data() {
-                    if let Ok(sdf_message) = serde_json::from_slice::<SdfMessage>(data) {
-                        let context_definitions = sdf_message.sdf_instance.sdf_context;
-
-                        if let Some(context_definitions) = context_definitions {
-                            let configuration_data = serde_json::from_value::<ConfigurationData>(
-                                serde_json::to_value(context_definitions).unwrap(),
-                            )
-                            .unwrap();
-
-                            if let Some(new_device_name) = &configuration_data.device_name {
-                                println!("{new_device_name}");
-                                // device_name = new_device_name.as_str();
+                    if let Ok(configuration_data) = ConfigurationData::try_from(data) {
+                        if let Some(new_device_name) = configuration_data.device_name {
+                            {
+                                DEVICE_NAME.set(new_device_name).ok();
                             }
+                        }
 
-                            if let Some(new_unit) = configuration_data.unit {
-                                println!("{new_unit}");
-                                // unit = new_unit.as_str();
+                        if let Some(new_unit) = configuration_data.unit {
+                            {
+                                UNIT.set(new_unit.to_string()).ok();
                             }
                         }
 
@@ -284,7 +305,7 @@ fn main() -> anyhow::Result<()> {
                   mut response: CoapResponse| {
                 use libcoap_rs::protocol::CoapContentFormat;
 
-                let temp_val = temp_sensor
+                let mut temp_val = temp_sensor
                     .lock()
                     .unwrap()
                     .get_measurement_result()
@@ -292,7 +313,9 @@ fn main() -> anyhow::Result<()> {
                     .temperature
                     .as_degrees_celsius();
 
-                // TODO: Fahrenheit would be C x 9/5 + 32
+                if UNIT.get() == Some(&"F".to_string()) {
+                    temp_val = temp_val * 9.0 / 5.0 + 32.0;
+                }
 
                 let json = format!("{temp_val:.2}");
                 let data = Vec::<u8>::from(json.as_bytes());
@@ -306,18 +329,12 @@ fn main() -> anyhow::Result<()> {
         )),
     );
 
-    let _sdf_instance = SdfInstanceBuilder::default().build();
-
-    // Add the resource to the context.
     context.add_resource(resource);
     loop {
-        // process IO in a loop...
-        if let Err(e) = context.do_io(None) {
+        if context.do_io(None).is_err() {
             break;
         }
-        // ...until we want to shut down.
     }
-    // Properly shut down, completing outstanding IO requests and properly closing sessions.
     context.shutdown(Some(Duration::from_secs(0))).unwrap();
 
     Ok(())
