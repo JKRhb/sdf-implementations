@@ -1,4 +1,20 @@
+// Copyright 2026 Jan Romann
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT.
+//
+// SPDX-License-Identifier: MIT
+
+pub mod affordances;
+pub mod common_qualities;
+pub mod info_block;
 pub mod protocol_mappings;
+pub mod schema_definition;
+pub mod sdf_context;
+pub mod sdf_data;
+pub mod sdf_object;
+pub mod sdf_thing;
 
 use std::collections::{HashMap, HashSet};
 
@@ -6,67 +22,44 @@ use anyhow::Context;
 use derive_builder::Builder;
 use json_merge_patch::json_merge_patch;
 use json_pointer::JsonPointer;
+use ploidy_pointer::{JsonPointee, JsonPointerTarget};
 use semver::Version;
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+use serde_json::Value;
 use serde_with::skip_serializing_none;
 
 use crate::{
+    model::{
+        affordances::{sdf_action::SdfAction, sdf_event::SdfEvent},
+        info_block::InfoBlock,
+        sdf_context::SdfContext,
+        sdf_data::SdfData,
+        sdf_object::SdfObject,
+        sdf_thing::SdfThing,
+    },
     supplement::SdfSupplement,
     traits::{GlobalNameAggregator, GlobalNameContributor, SdfDataStructure},
-    util::{default_bool_true, none_extra, skip_bool_true},
+    util::none_extra,
 };
 
 #[cfg(feature = "utoipa")]
 use utoipa::ToSchema;
 
 #[skip_serializing_none]
-#[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
-#[cfg_attr(feature = "utoipa", derive(ToSchema))]
-pub struct InfoBlock {
-    // TODO: Add modified and features
-    #[builder(setter(into, strip_option), default)]
-    pub title: Option<String>,
-    #[builder(setter(into, strip_option), default)]
-    pub description: Option<String>,
-    #[builder(setter(into, strip_option), default)]
-    pub version: Option<String>,
-    #[builder(setter(into, strip_option), default)]
-    pub copyright: Option<String>,
-    #[builder(setter(into, strip_option), default)]
-    pub license: Option<String>,
-    #[builder(setter(into, strip_option), default)]
-    pub lineage: Option<String>,
-    #[builder(setter(into, strip_option), default)]
-    #[serde(rename = "$comment")]
-    pub comment: Option<String>,
-    #[serde(flatten, deserialize_with = "none_extra")]
-    #[builder(setter(into, strip_option), default)]
-    pub additional_qualities: Option<Map<String, Value>>,
-}
-
-#[skip_serializing_none]
-#[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
+#[derive(
+    PartialEq,
+    Default,
+    Serialize,
+    Deserialize,
+    Debug,
+    Builder,
+    Clone,
+    JsonPointee,
+    JsonPointerTarget,
+)]
 #[cfg_attr(feature = "utoipa", derive(ToSchema))]
 #[serde(rename_all = "camelCase")]
-pub struct CommonQualities {
-    #[builder(setter(into, strip_option), default)]
-    pub description: Option<String>,
-    #[builder(setter(into, strip_option), default)]
-    pub label: Option<String>,
-    #[builder(setter(into, strip_option), default)]
-    #[serde(rename = "$comment")]
-    pub comment: Option<String>,
-    #[builder(setter(into, strip_option), default)]
-    pub sdf_ref: Option<String>, // TODO: Add regex
-    #[builder(setter(into, strip_option), default)]
-    pub sdf_required: Option<Vec<String>>,
-}
-
-#[skip_serializing_none]
-#[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
-#[cfg_attr(feature = "utoipa", derive(ToSchema))]
-#[serde(rename_all = "camelCase")]
+#[ploidy(pointer(rename_all = "camelCase"))]
 pub struct SdfModel {
     #[builder(setter(strip_option), default)]
     pub info: Option<InfoBlock>,
@@ -79,7 +72,7 @@ pub struct SdfModel {
     #[builder(setter(strip_option), default)]
     pub sdf_object: Option<HashMap<String, SdfObject>>,
     #[builder(setter(strip_option), default)]
-    pub sdf_property: Option<HashMap<String, SdfProperty>>,
+    pub sdf_property: Option<HashMap<String, SdfAction>>,
     #[builder(setter(strip_option), default)]
     pub sdf_action: Option<HashMap<String, SdfAction>>,
     #[builder(setter(strip_option), default)]
@@ -89,7 +82,7 @@ pub struct SdfModel {
     pub sdf_data: Option<HashMap<String, SdfData>>,
     #[serde(flatten, deserialize_with = "none_extra")]
     #[builder(setter(into, strip_option), default)]
-    pub additional_qualities: Option<Map<String, Value>>,
+    pub additional_qualities: Option<HashMap<String, Value>>,
 }
 
 impl SdfDataStructure for SdfModel {
@@ -111,6 +104,38 @@ enum NewVersionType {
 }
 
 impl SdfModel {
+    pub fn list_config_parameters(
+        &self,
+        _entry_point: &str,
+    ) -> anyhow::Result<HashMap<String, SdfContext>> {
+        let mut result = HashMap::<String, SdfContext>::new();
+
+        // TODO: Refactor and nest
+        if let Some(sdf_thing_map) = &self.sdf_thing {
+            for (thing_key, sdf_thing) in sdf_thing_map.iter() {
+                if let Some(sdf_context_definitions) = &sdf_thing.sdf_context {
+                    for (context_key, value) in sdf_context_definitions.iter() {
+                        let path = ["sdfThing", thing_key, "sdfContext", context_key].join("/");
+                        result.insert(path, value.clone());
+                    }
+                }
+            }
+        }
+
+        if let Some(sdf_object_map) = &self.sdf_object {
+            for (thing_key, sdf_thing) in sdf_object_map.iter() {
+                if let Some(sdf_context_definitions) = &sdf_thing.sdf_context {
+                    for (context_key, value) in sdf_context_definitions.iter() {
+                        let path = ["sdfThing", thing_key, "sdfContext", context_key].join("/");
+                        result.insert(path, value.clone());
+                    }
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
     /// Determines the set of global names of this SDF Model that conflict a list
     /// of existing SDF models.
     pub fn determine_global_name_collisions(
@@ -193,7 +218,7 @@ impl SdfModel {
         Ok(updated_model)
     }
 
-    fn check_for_backwards_compatibility(json_pointer: &String) -> bool {
+    fn check_for_backwards_compatibility(json_pointer: &str) -> bool {
         // TODO: Double-check whether this approach works
         let minor_change_keywords = vec![
             "#", // Top-level definitions
@@ -250,7 +275,7 @@ impl SdfModel {
     ///
     /// ```
     /// use sdf_data_structures::model::SdfModelBuilder;
-    /// use sdf_data_structures::model::InfoBlockBuilder;
+    /// use sdf_data_structures::model::info_block::InfoBlockBuilder;
     /// #
     /// # fn main() -> anyhow::Result<()> {
     /// #
@@ -299,7 +324,7 @@ impl SdfModel {
     ///
     /// ```
     /// use sdf_data_structures::model::SdfModelBuilder;
-    /// use sdf_data_structures::model::InfoBlockBuilder;
+    /// use sdf_data_structures::model::info_block::InfoBlockBuilder;
     /// #
     /// # fn main() -> anyhow::Result<()> {
     /// #
@@ -368,155 +393,6 @@ impl SdfModel {
     }
 }
 
-#[skip_serializing_none]
-#[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
-#[cfg_attr(feature = "utoipa", derive(ToSchema))]
-#[serde(rename_all = "camelCase")]
-pub struct SdfThing {
-    #[builder(setter(strip_option), default)]
-    #[cfg_attr(feature = "utoipa", schema(no_recursion))]
-    pub sdf_thing: Option<HashMap<String, SdfThing>>,
-    #[builder(setter(strip_option), default)]
-    pub sdf_object: Option<HashMap<String, SdfObject>>,
-
-    #[builder(setter(strip_option), default)]
-    pub sdf_context: Option<HashMap<String, SdfContext>>,
-    #[builder(setter(strip_option), default)]
-    pub sdf_property: Option<HashMap<String, SdfProperty>>,
-    #[builder(setter(strip_option), default)]
-    pub sdf_action: Option<HashMap<String, SdfAction>>,
-    #[builder(setter(strip_option), default)]
-    pub sdf_event: Option<HashMap<String, SdfEvent>>,
-    #[builder(setter(strip_option), default)]
-    pub sdf_data: Option<HashMap<String, SdfData>>,
-
-    #[serde(flatten)]
-    #[builder(default)]
-    pub common_qualities: CommonQualities,
-    #[serde(flatten, deserialize_with = "none_extra")]
-    #[builder(setter(into, strip_option), default)]
-    pub additional_qualities: Option<Map<String, Value>>,
-}
-
-impl GlobalNameContributor for SdfThing {
-    const QUALITY_NAME: &'static str = "sdfThing";
-
-    fn get_global_name(&self, prefix: &String, result: &mut HashSet<String>, given_name: &String) {
-        let global_name = format!("{prefix}/{}/{given_name}", Self::QUALITY_NAME);
-        result.insert(global_name.clone());
-
-        if let Some(sdf_thing) = &self.sdf_thing {
-            for (key, value) in sdf_thing.iter() {
-                value.get_global_name(&global_name, result, key);
-            }
-        }
-
-        if let Some(sdf_object) = &self.sdf_object {
-            for (key, value) in sdf_object.iter() {
-                value.get_global_name(&global_name, result, key);
-            }
-        }
-
-        if let Some(sdf_context) = &self.sdf_context {
-            for (key, value) in sdf_context.iter() {
-                value.get_global_name(&global_name, result, key);
-            }
-        }
-
-        if let Some(sdf_action) = &self.sdf_action {
-            for (key, value) in sdf_action.iter() {
-                value.get_global_name(&global_name, result, key);
-            }
-        }
-
-        if let Some(sdf_property) = &self.sdf_property {
-            for (key, value) in sdf_property.iter() {
-                value.get_global_name(&global_name, result, key);
-            }
-        }
-
-        if let Some(sdf_event) = &self.sdf_event {
-            for (key, value) in sdf_event.iter() {
-                value.get_global_name(&global_name, result, key);
-            }
-        }
-
-        if let Some(sdf_data) = &self.sdf_data {
-            for (key, value) in sdf_data.iter() {
-                value.get_global_name(&global_name, result, key);
-            }
-        }
-    }
-}
-
-#[skip_serializing_none]
-#[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
-#[cfg_attr(feature = "utoipa", derive(ToSchema))]
-#[serde(rename_all = "camelCase")]
-pub struct SdfObject {
-    #[builder(setter(strip_option), default)]
-    pub sdf_context: Option<HashMap<String, SdfContext>>,
-    #[builder(setter(strip_option), default)]
-    pub sdf_property: Option<HashMap<String, SdfProperty>>,
-    #[builder(setter(strip_option), default)]
-    pub sdf_action: Option<HashMap<String, SdfAction>>,
-    #[builder(setter(strip_option), default)]
-    pub sdf_event: Option<HashMap<String, SdfEvent>>,
-    #[builder(setter(strip_option), default)]
-    pub sdf_data: Option<HashMap<String, SdfData>>,
-
-    #[serde(flatten)]
-    #[builder(default)]
-    pub common_qualities: CommonQualities,
-
-    #[builder(setter(strip_option), default)]
-    pub min_items: Option<u64>,
-    #[builder(setter(strip_option), default)]
-    pub max_items: Option<u64>,
-    #[serde(flatten, deserialize_with = "none_extra")]
-    #[builder(setter(into, strip_option), default)]
-    pub additional_qualities: Option<Map<String, Value>>,
-}
-
-impl GlobalNameContributor for SdfObject {
-    const QUALITY_NAME: &'static str = "sdfObject";
-
-    fn get_global_name(&self, prefix: &String, result: &mut HashSet<String>, given_name: &String) {
-        let global_name = format!("{prefix}/{}/{given_name}", Self::QUALITY_NAME);
-        result.insert(global_name.clone());
-
-        if let Some(sdf_action) = &self.sdf_action {
-            for (key, value) in sdf_action.iter() {
-                value.get_global_name(&global_name, result, key);
-            }
-        }
-
-        if let Some(sdf_property) = &self.sdf_property {
-            for (key, value) in sdf_property.iter() {
-                value.get_global_name(&global_name, result, key);
-            }
-        }
-
-        if let Some(sdf_context) = &self.sdf_context {
-            for (key, value) in sdf_context.iter() {
-                value.get_global_name(&global_name, result, key);
-            }
-        }
-
-        if let Some(sdf_event) = &self.sdf_event {
-            for (key, value) in sdf_event.iter() {
-                value.get_global_name(&global_name, result, key);
-            }
-        }
-
-        if let Some(sdf_data) = &self.sdf_data {
-            for (key, value) in sdf_data.iter() {
-                value.get_global_name(&global_name, result, key);
-            }
-        }
-    }
-}
-
 impl GlobalNameAggregator for Vec<&SdfModel> {
     fn determine_global_names(&self) -> HashSet<String> {
         let mut result = HashSet::new();
@@ -533,268 +409,11 @@ impl GlobalNameAggregator for Vec<&SdfModel> {
     }
 }
 
-#[skip_serializing_none]
-#[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
-#[cfg_attr(feature = "utoipa", derive(ToSchema))]
-#[serde(rename_all = "camelCase")]
-pub struct SdfData {
-    #[serde(flatten)]
-    #[builder(default)]
-    pub common_qualities: CommonQualities,
-
-    #[builder(setter(strip_option), default)]
-    #[serde(flatten)]
-    pub r#type: Option<SchemaDefinition>,
-
-    #[builder(setter(into, strip_option), default)]
-    #[cfg_attr(feature = "utoipa", schema(no_recursion))]
-    pub sdf_choice: Option<HashMap<String, SdfData>>,
-    #[builder(setter(strip_option), default)]
-    pub r#enum: Option<Vec<String>>,
-
-    #[builder(setter(strip_option), default)]
-    pub r#const: Option<serde_json::Value>,
-    #[builder(setter(strip_option), default)]
-    #[serde(rename = "default")]
-    pub default_value: Option<serde_json::Value>,
-    #[serde(flatten, deserialize_with = "deserialize_additional_sdf_data")]
-    #[builder(setter(into, strip_option), default)]
-    pub additional_qualities: Option<Map<String, Value>>,
-}
-
-pub fn deserialize_additional_sdf_data<'de, D>(
-    deserializer: D,
-) -> Result<Option<Map<String, Value>>, D::Error>
-where
-    D: serde::de::Deserializer<'de>,
-{
-    let mut deserialized_map = Map::deserialize(deserializer)?;
-    deserialized_map.retain(|key, _| key != "type");
-    Ok((!deserialized_map.is_empty()).then_some(deserialized_map))
-}
-
-impl GlobalNameContributor for SdfData {
-    const QUALITY_NAME: &'static str = "sdfData";
-}
-
-#[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "utoipa", derive(ToSchema))]
-#[serde(tag = "type", rename_all = "camelCase")]
-pub enum SchemaDefinition {
-    Boolean,
-    String(StringSchema),
-    Integer(NumericSchema<i64>),
-    Number(NumericSchema<f64>),
-    Array(ArraySchema),
-    Object(ObjectSchema),
-}
-
-#[skip_serializing_none]
-#[derive(PartialEq, Serialize, Deserialize, Debug, Clone, Builder)]
-#[cfg_attr(feature = "utoipa", derive(ToSchema))]
-#[serde(rename_all = "camelCase")]
-pub struct StringSchema {
-    #[builder(setter(strip_option), default)]
-    pub min_length: Option<u64>,
-    #[builder(setter(strip_option), default)]
-    pub max_length: Option<u64>,
-    #[builder(setter(into, strip_option), default)]
-    pub pattern: Option<String>,
-    #[builder(setter(into, strip_option), default)]
-    pub format: Option<String>,
-}
-
-#[skip_serializing_none]
-#[derive(PartialEq, Serialize, Deserialize, Debug, Clone, Builder)]
-#[cfg_attr(feature = "utoipa", derive(ToSchema))]
-#[serde(rename_all = "camelCase")]
-pub struct NumericSchema<T> {
-    #[builder(setter(strip_option), default)]
-    pub minimum: Option<T>,
-    #[builder(setter(strip_option), default)]
-    pub maximum: Option<T>,
-    #[builder(setter(strip_option), default)]
-    pub exclusive_minimum: Option<T>,
-    #[builder(setter(strip_option), default)]
-    pub exclusive_maximum: Option<T>,
-    #[builder(setter(strip_option), default)]
-    pub multiple_of: Option<T>,
-}
-
-#[skip_serializing_none]
-#[derive(PartialEq, Serialize, Deserialize, Debug, Clone, Builder)]
-#[cfg_attr(feature = "utoipa", derive(ToSchema))]
-#[serde(rename_all = "camelCase")]
-pub struct ArraySchema {
-    #[builder(setter(strip_option), default)]
-    pub min_items: Option<u64>,
-    #[builder(setter(strip_option), default)]
-    pub max_items: Option<u64>,
-    #[builder(setter(strip_option), default)]
-    pub unique_items: Option<bool>,
-}
-
-#[skip_serializing_none]
-#[derive(PartialEq, Serialize, Deserialize, Debug, Clone, Builder)]
-#[cfg_attr(feature = "utoipa", derive(ToSchema))]
-#[serde(rename_all = "camelCase")]
-pub struct ObjectSchema {
-    #[builder(setter(into, strip_option), default)]
-    pub required: Option<Vec<String>>,
-    #[builder(setter(into, strip_option), default)]
-    #[cfg_attr(feature = "utoipa", schema(no_recursion))]
-    pub properties: Option<HashMap<String, SdfData>>,
-}
-
-// #[skip_serializing_none]
-// #[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
-// pub struct PropertyProtocolMap {
-//     pub coap: Option<PropertyCoapProtocolMap>,
-//     pub http: Option<PropertyCoapProtocolMap>,
-// }
-
-#[skip_serializing_none]
-#[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
-#[cfg_attr(feature = "utoipa", derive(ToSchema))]
-#[serde(rename_all = "camelCase")]
-pub struct SdfProperty {
-    #[serde(flatten)]
-    #[builder(default)]
-    #[cfg_attr(feature = "utoipa", schema(no_recursion))]
-    pub internal_data: SdfData,
-
-    #[builder(setter(strip_option), default = "true")]
-    #[serde(default = "default_bool_true", skip_serializing_if = "skip_bool_true")]
-    pub readable: bool,
-    #[builder(setter(strip_option), default = "true")]
-    #[serde(default = "default_bool_true", skip_serializing_if = "skip_bool_true")]
-    pub writable: bool,
-    #[builder(setter(strip_option), default = "true")]
-    #[serde(default = "default_bool_true", skip_serializing_if = "skip_bool_true")]
-    pub observable: bool,
-    // pub sdf_protocol_map: Option<PropertyProtocolMap>,
-}
-
-impl GlobalNameContributor for SdfProperty {
-    const QUALITY_NAME: &'static str = "sdfProperty";
-}
-
-#[skip_serializing_none]
-#[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
-#[cfg_attr(feature = "utoipa", derive(ToSchema))]
-#[serde(rename_all = "camelCase")]
-pub struct SdfContext {
-    #[serde(flatten)]
-    #[builder(default)]
-    #[cfg_attr(feature = "utoipa", schema(no_recursion))]
-    pub internal_data: SdfData,
-
-    #[builder(setter(strip_option), default = "true")]
-    #[serde(default = "default_bool_true", skip_serializing_if = "skip_bool_true")]
-    pub writable: bool,
-}
-
-impl GlobalNameContributor for SdfContext {
-    const QUALITY_NAME: &'static str = "sdfContext";
-}
-
-#[skip_serializing_none]
-#[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
-#[cfg_attr(feature = "utoipa", derive(ToSchema))]
-#[serde(rename_all = "camelCase")]
-pub struct SdfAction {
-    #[serde(flatten)]
-    #[builder(default)]
-    pub common_qualities: CommonQualities,
-
-    #[builder(setter(strip_option), default)]
-    pub sdf_data: Option<HashMap<String, SdfData>>,
-    #[builder(setter(strip_option), default)]
-    pub sdf_input_data: Option<SdfData>,
-    #[builder(setter(strip_option), default)]
-    pub sdf_output_data: Option<SdfData>,
-    #[serde(flatten, deserialize_with = "none_extra")]
-    #[builder(setter(into, strip_option), default)]
-    pub additional_qualities: Option<Map<String, Value>>,
-}
-
-impl GlobalNameContributor for SdfAction {
-    const QUALITY_NAME: &'static str = "sdfAction";
-}
-
-#[skip_serializing_none]
-#[derive(PartialEq, Default, Serialize, Deserialize, Debug, Builder, Clone)]
-#[cfg_attr(feature = "utoipa", derive(ToSchema))]
-#[serde(rename_all = "camelCase")]
-pub struct SdfEvent {
-    #[serde(flatten)]
-    #[builder(default)]
-    pub common_qualities: CommonQualities,
-
-    #[builder(setter(strip_option), default)]
-    pub sdf_data: Option<HashMap<String, SdfData>>,
-    #[builder(setter(strip_option), default)]
-    pub sdf_output_data: Option<SdfData>,
-    #[serde(flatten)]
-    #[builder(setter(into), default)]
-    pub additional_qualities: HashMap<String, Value>,
-}
-
-impl GlobalNameContributor for SdfEvent {
-    const QUALITY_NAME: &'static str = "sdfEvent";
-}
-
 #[cfg(test)]
 mod tests {
     use serde_json::json;
 
     use super::*;
-
-    #[test]
-    fn test_common_qualities() {
-        let common_qualities = CommonQualitiesBuilder::default()
-            .comment("This is a comment")
-            .build()
-            .unwrap();
-
-        let serialized_common_qualities = "{\"$comment\":\"This is a comment\"}".to_string();
-
-        assert_eq!(
-            serde_json::to_string(&common_qualities).unwrap(),
-            serialized_common_qualities
-        );
-    }
-
-    #[test]
-    fn test_sdf_property() {
-        let sdf_property = SdfPropertyBuilder::default()
-            .writable(false)
-            .build()
-            .unwrap();
-
-        let serialized_sdf_property = "{\"writable\":false}".to_string();
-
-        assert_eq!(
-            serde_json::to_string(&sdf_property).unwrap(),
-            serialized_sdf_property
-        );
-    }
-
-    #[test]
-    fn test_const_and_default() {
-        let sdf_data = SdfDataBuilder::default()
-            .r#const(serde_json::Value::Null)
-            .default_value(json!(5))
-            .build()
-            .unwrap();
-
-        let serialized_sdf_property = "{\"const\":null,\"default\":5}".to_string();
-
-        assert_eq!(
-            serde_json::to_string(&sdf_data).unwrap(),
-            serialized_sdf_property
-        );
-    }
 
     #[test]
     fn test_rfc_9880_example() {
