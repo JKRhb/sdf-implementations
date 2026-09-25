@@ -3298,6 +3298,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "sdf-consumer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap",
+ "coap",
+ "coap-lite",
+ "json-pointer",
+ "reqwest",
+ "sdf-data-structures",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "uuid",
+ "webrtc-dtls",
+]
+
+[[package]]
 name = "sdf-data-structures"
 version = "0.1.0"
 dependencies = [
@@ -3328,25 +3347,6 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
-]
-
-[[package]]
-name = "sdf-processor"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "clap",
- "coap",
- "coap-lite",
- "json-pointer",
- "reqwest",
- "sdf-data-structures",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
- "uuid",
- "webrtc-dtls",
 ]
 
 [[package]]
